@@ -18,7 +18,7 @@ const Navbar = () => {
     useEffect(() => {
         const checkApiStatus = async () => {
             try {
-                const response = await fetch('http://127.0.0.1:8000/api/health');
+                const response = await fetch('/api/health');
                 if (response.ok) {
                     setIsApiLive(true);
                 } else {

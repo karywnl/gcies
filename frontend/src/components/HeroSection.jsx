@@ -11,10 +11,10 @@ const HeroSection = ({ onSearch, loading }) => {
 
     return (
         <div className="fade-in" style={{ textAlign: 'center', marginTop: '5vh', marginBottom: '3rem', width: '100%', maxWidth: '800px' }}>
-            <h1 className="gradient-text floating" style={{ fontSize: '4.5rem', fontWeight: 700, marginBottom: '1rem', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+            <h1 className="gradient-text floating" style={{ fontSize: '3.5rem', fontWeight: 700, marginBottom: '0.75rem', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
                 Discover the World
             </h1>
-            <p style={{ fontSize: '1.25rem', color: 'var(--text-muted)', marginBottom: '3rem', maxWidth: '600px', margin: '0 auto 3rem auto', lineHeight: 1.6 }}>
+            <p style={{ fontSize: '1.1rem', color: 'var(--text-muted)', marginBottom: '2rem', maxWidth: '600px', margin: '0 auto 2rem auto', lineHeight: 1.6 }}>
                 Enter a village or town name to uncover its hidden gems, rich culture, and historical landmarks instantly.
             </p>
 

@@ -12,11 +12,11 @@ const About = () => {
         }}>
 
             {/* Header Section */}
-            <div style={{ textAlign: 'center', marginTop: '2rem' }}>
-                <h1 className="gradient-text floating" style={{ fontSize: '3.5rem', fontWeight: 700, marginBottom: '1rem', lineHeight: 1.2 }}>
+            <div style={{ textAlign: 'center', marginTop: '1rem' }}>
+                <h1 className="gradient-text floating" style={{ fontSize: '3rem', fontWeight: 700, marginBottom: '0.75rem', lineHeight: 1.2 }}>
                     Unveiling the World's Stories
                 </h1>
-                <p style={{ fontSize: '1.2rem', color: 'var(--text-muted)', maxWidth: '700px', margin: '0 auto', lineHeight: 1.6 }}>
+                <p style={{ fontSize: '1.1rem', color: 'var(--text-muted)', maxWidth: '700px', margin: '0 auto', lineHeight: 1.6 }}>
                     GCIES (Geo-Contextual Information Extraction & Summarization) is an intelligent tool designed to bridge the gap between curiosity and discovery. We extract the essence of any location on Earth.
                 </p>
             </div>

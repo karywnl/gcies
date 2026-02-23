@@ -60,8 +60,8 @@ const Navbar = () => {
                     padding: '0.75rem 1.5rem',
                     transition: 'all 0.3s ease',
                     background: scrolled ? 'rgba(255, 255, 255, 0.75)' : 'rgba(255, 255, 255, 0.4)',
-                    backdropFilter: 'blur(20px)',
-                    WebkitBackdropFilter: 'blur(20px)',
+                    backdropFilter: 'blur(10px)',
+                    WebkitBackdropFilter: 'blur(10px)',
                     border: '1px solid rgba(255, 255, 255, 0.6)',
                     boxShadow: scrolled ? '0 10px 40px rgba(0, 0, 0, 0.08)' : '0 4px 30px rgba(0, 0, 0, 0.04)',
                     borderRadius: '24px', // Changed from 9999px to accommodate dropdown

@@ -21,17 +21,93 @@ except OSError:
 # Initialize Groq client
 groq_client = Groq(api_key=os.getenv("GROQ_API_KEY", "mock_key").strip())
 
+def get_best_wikipedia_title(query: str) -> str:
+    """Uses Wikipedia search API to find the closest geographical matching title."""
+    import requests
+    url = "https://en.wikipedia.org/w/api.php"
+    
+    params_search = {
+        "action": "opensearch",
+        "search": query,
+        "limit": 10,
+        "namespace": 0,
+        "format": "json"
+    }
+    headers = {"User-Agent": "GCIES-App (your@email.com)"}
+    try:
+        res_search = requests.get(url, params=params_search, headers=headers).json()
+        if len(res_search) > 1 and res_search[1]:
+            candidates = res_search[1]
+            
+            params_props = {
+                "action": "query",
+                "prop": "coordinates|pageprops",
+                "titles": "|".join(candidates[:10]),
+                "format": "json"
+            }
+            res_props = requests.get(url, params=params_props, headers=headers).json()
+            pages = res_props.get("query", {}).get("pages", {})
+            
+            best_candidate = None
+            best_score = -1
+            
+            for candidate in candidates:
+                for page_id, page_data in pages.items():
+                    if page_data.get("title") == candidate:
+                        has_coords = "coordinates" in page_data
+                        desc = page_data.get("pageprops", {}).get("wikibase-shortdesc", "").lower()
+                        
+                        score = 0
+                        
+                        primary_keywords = ["town", "city", "village", "municipality", "settlement", "capital"]
+                        if any(kw in desc for kw in primary_keywords):
+                            score += 50
+                            
+                        secondary_keywords = ["district", "state", "country", "neighborhood", "territory", "island"]
+                        if any(kw in desc for kw in secondary_keywords):
+                            score += 20
+                            
+                        if "constituency" in desc or "constituency" in candidate.lower() or "electoral" in desc:
+                            score -= 30
+                            
+                        if has_coords:
+                            score += 10
+                        
+                        if score > 0 and score > best_score:
+                            best_score = score
+                            best_candidate = candidate
+                            
+            if best_candidate:
+                return best_candidate
+                
+    except Exception as e:
+        print(f"Error finding best title: {e}")
+        
+    return None
+
 def fetch_wikipedia_data(location_name: str) -> dict:
     """Fetches raw text and attempts to get main image from Wikipedia."""
-    page = wiki_wiki.page(location_name)
+    best_title = get_best_wikipedia_title(location_name)
+    
+    if not best_title:
+        raise ValueError(f"Could not identify a geographical location for: '{location_name}'. Please try being more specific.")
+        
+    page = wiki_wiki.page(best_title)
     if not page.exists():
-        raise ValueError(f"Could not find Wikipedia page for: {location_name}")
+        raise ValueError(f"Could not find Wikipedia page for: '{location_name}' (Tried: '{best_title}')")
     
     import requests
     image_url = None
     try:
-        url = f"https://en.wikipedia.org/w/api.php?action=query&titles={location_name}&prop=pageimages&format=json&pithumbsize=1000"
-        res = requests.get(url).json()
+        url = "https://en.wikipedia.org/w/api.php"
+        params = {
+            "action": "query",
+            "titles": best_title,
+            "prop": "pageimages",
+            "format": "json",
+            "pithumbsize": 1000
+        }
+        res = requests.get(url, params=params, headers={"User-Agent": "GCIES-App (your@email.com)"}).json()
         pages = res.get("query", {}).get("pages", {})
         for page_id in pages:
             if "thumbnail" in pages[page_id]:

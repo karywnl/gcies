@@ -27,6 +27,20 @@ GCIES is built on a "fetch-filter-summarize" NLP architecture optimized for LLM 
 2. **Filter:** To keep LLM costs at zero and inference speeds high, the raw text is passed through an offline SpaCy NER (Named Entity Recognition) model. The backend filters down the text to only sentences containing dense Geo-Cultural entities (`GPE`, `LOC`, `FAC`, `ORG`, `EVENT`, `WORK_OF_ART`).
 3. **Summarize:** The top 40 most information-dense sentences are handed to Groq's Llama 3 API for structuring into 6-7 rich, easily digestible insights. 
 
+## Geographic Search Filtering
+
+Wikipedia's search naturally returns exact matches first. To prevent the API from extracting summaries for non-geographical entities (like people, movies, or deities) when a user searches for a simple place name, GCIES employs a smart location filtering algorithm:
+
+1. **Broad Candidates:** Fetches the top 10 search results using the Wikipedia OpenSearch API.
+2. **Geographical Scoring:** Each candidate is rapidly scored against Wikipedia's internal `pageprops` metadata.
+   - **Primary Locations (+50):** Candidates containing descriptors like "town", "city", "village", or "municipality".
+   - **Regional Locations (+20):** Candidates categorized as a "district", "state", or "country".
+   - **Coordinates (+10):** Validation that the entity exists physically on a map.
+   - **Political Penalties (-30):** Broad borders like "Assembly constituency" are penalized so the core physical town takes priority.
+3. **Fallback:** If the user's query returns no candidates matching geographical criteria, a clean API error is returned rather than hallucinating facts.
+
+*Example:* Searching for "Bhavani" automatically bypasses the Hindu Goddess page (0 score) and the Bhavani Assembly constituency (-20 score) to perfectly lock onto "Bhavani, Tamil Nadu" (60 score).
+
 ## Local Setup Instructions
 
 ### 1. Clone the repository

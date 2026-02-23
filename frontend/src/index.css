@@ -1,12 +1,13 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
 
 :root {
-  --primary: #3b82f6; /* moderate blue */
+  --primary: #3b82f6;
+  /* moderate blue */
   --primary-light: #60a5fa;
   --bg-color: #ffffff;
   --text-dark: #1e293b;
   --text-muted: #64748b;
-  
+
   --glass-bg: rgba(255, 255, 255, 0.35);
   --glass-border: rgba(255, 255, 255, 0.5);
   --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
@@ -39,13 +40,18 @@ body {
     linear-gradient(to bottom, rgba(59, 130, 246, 0.06) 1px, transparent 1px);
   background-size: 60px 60px;
   animation: moveGrid 20s linear infinite;
-  mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,0) 90%);
-  -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,0) 90%);
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0) 90%);
+  -webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0) 90%);
 }
 
 @keyframes moveGrid {
-  0% { transform: translateY(0); }
-  100% { transform: translateY(60px); }
+  0% {
+    transform: translateY(0);
+  }
+
+  100% {
+    transform: translateY(60px);
+  }
 }
 
 /* Glassmorphism Classes */
@@ -99,7 +105,8 @@ body {
 .glass-btn:hover {
   background: var(--primary-light);
   transform: translateY(-3px);
-  box-shadow: 0 15px 30px -5px rgba(59, 130, 246, 0.45);
+  box-shadow: 0 15px 30px -5px rgba(59, 130, 246, 0.45), 0 0 15px rgba(59, 130, 246, 0.5);
+  /* Added glow effect */
 }
 
 .glass-btn:active {
@@ -118,8 +125,15 @@ body {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(15px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(15px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .floating {
@@ -127,7 +141,30 @@ body {
 }
 
 @keyframes float {
-  0% { transform: translateY(0px); }
-  50% { transform: translateY(-10px); }
-  100% { transform: translateY(0px); }
+  0% {
+    transform: translateY(0px);
+  }
+
+  50% {
+    transform: translateY(-10px);
+  }
+
+  100% {
+    transform: translateY(0px);
+  }
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+  .hero-headline {
+    font-size: 2.5rem !important;
+  }
+
+  .hero-subheadline {
+    font-size: 1rem !important;
+  }
+
+  .glass-panel {
+    padding: 1.5rem !important;
+  }
 }

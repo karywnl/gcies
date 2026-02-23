@@ -2,7 +2,7 @@ const ResultsDashboard = ({ data }) => {
     const { image_url, insights, location_name } = data;
 
     return (
-        <div className="fade-in" style={{ width: '100%', maxWidth: '1200px', animationDelay: '0.2s', marginTop: '2rem' }}>
+        <div className="fade-in" style={{ width: '100%', maxWidth: '1200px', animationDelay: '0.2s', margin: '2rem auto 0' }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem' }}>
 
                 {/* Main Image Card */}

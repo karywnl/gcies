@@ -1,13 +1,60 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Search } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const SearchDashboard = ({ onSearch, loading }) => {
     const [query, setQuery] = useState('');
+    const [suggestions, setSuggestions] = useState([]);
+    const [showDropdown, setShowDropdown] = useState(false);
+    const [debouncedQuery, setDebouncedQuery] = useState('');
+    const [isFetching, setIsFetching] = useState(false);
+
+    // Debounce effect
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedQuery(query);
+        }, 300);
+
+        return () => {
+            clearTimeout(handler);
+        };
+    }, [query]);
+
+    // Fetch suggestions
+    useEffect(() => {
+        if (debouncedQuery.trim().length > 1) {
+            setIsFetching(true);
+            setShowDropdown(true);
+            fetch(`http://127.0.0.1:8000/api/search?q=${encodeURIComponent(debouncedQuery)}`)
+                .then(res => res.json())
+                .then(data => {
+                    setSuggestions(data);
+                    setIsFetching(false);
+                    // Keep dropdown open if we got data or not, but it might just say no results
+                })
+                .catch(err => {
+                    console.error("Autocomplete Error:", err);
+                    setSuggestions([]);
+                    setIsFetching(false);
+                    setShowDropdown(false);
+                });
+        } else {
+            setSuggestions([]);
+            setIsFetching(false);
+            setShowDropdown(false);
+        }
+    }, [debouncedQuery]);
 
     const handleSubmit = (e) => {
         e.preventDefault();
+        setShowDropdown(false);
         onSearch(query);
+    };
+
+    const handleSelectSuggestion = (suggestionTitle) => {
+        setQuery(suggestionTitle);
+        setShowDropdown(false);
+        onSearch(suggestionTitle); // Instantly search
     };
 
     return (
@@ -20,7 +67,7 @@ const SearchDashboard = ({ onSearch, loading }) => {
             style={{
                 width: '100%',
                 maxWidth: '800px',
-                marginTop: '15vh', // Push it down somewhat mimicking a hero position
+                marginTop: '15vh',
                 marginBottom: '4rem',
                 display: 'flex',
                 flexDirection: 'column',
@@ -30,36 +77,97 @@ const SearchDashboard = ({ onSearch, loading }) => {
         >
             <div style={{ textAlign: 'center', marginBottom: '0.5rem' }}>
                 <h2 className="gradient-text floating dashboard-title" style={{ fontWeight: 700, marginBottom: '1rem', letterSpacing: '-0.02em' }}>Where to next?</h2>
-                <p style={{ color: 'var(--text-muted)', fontSize: '1.2rem' }}>Enter any location to begin your journey.</p>
+                <p style={{ color: 'var(--text-muted)', fontSize: '1.2rem' }}>Type a location to see suggestions or press explore.</p>
             </div>
 
-            <form onSubmit={handleSubmit} style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-                <input
-                    type="text"
-                    className="glass-input"
-                    placeholder="Sankarankovil, Tamil Nadu"
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    style={{ flex: '1', minWidth: 'min(100%, 280px)', maxWidth: '500px', background: 'rgba(255, 255, 255, 0.8)' }}
-                />
-                <button
-                    type="submit"
-                    className="glass-btn"
-                    disabled={loading || !query.trim()}
-                    style={{ opacity: (loading || !query.trim()) ? 0.7 : 1, minWidth: '140px' }}
-                >
-                    {loading ? (
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center', width: '100%' }}>
-                            <div style={{ width: '20px', height: '20px', border: '3px solid rgba(255,255,255,0.3)', borderTop: '3px solid white', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-                            Searching...
-                        </span>
-                    ) : (
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center', width: '100%' }}>
-                            <Search size={20} /> Explore
-                        </span>
-                    )}
-                </button>
-            </form>
+            <div style={{ position: 'relative', width: '100%', display: 'flex', justifyContent: 'center' }}>
+                <form onSubmit={handleSubmit} style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap', width: '100%' }}>
+                    <div style={{ position: 'relative', flex: '1', minWidth: 'min(100%, 280px)', maxWidth: '500px' }}>
+                        <input
+                            type="text"
+                            className="glass-input"
+                            placeholder="Salem, Tamil Nadu"
+                            value={query}
+                            onChange={(e) => setQuery(e.target.value)}
+                            onFocus={() => { if (suggestions.length > 0 || isFetching) setShowDropdown(true); }}
+                            onBlur={() => setTimeout(() => setShowDropdown(false), 200)} // delay to allow clicks
+                            style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(255, 255, 255, 0.8)' }}
+                        />
+                        <AnimatePresence>
+                            {showDropdown && (isFetching || suggestions.length > 0) && (
+                                <motion.div
+                                    initial={{ opacity: 0, y: -10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: -10 }}
+                                    style={{
+                                        position: 'absolute',
+                                        top: '100%',
+                                        left: 0,
+                                        right: 0,
+                                        marginTop: '0.5rem',
+                                        background: 'rgba(255, 255, 255, 0.9)',
+                                        backdropFilter: 'blur(10px)',
+                                        borderRadius: '12px',
+                                        boxShadow: '0 10px 30px rgba(0,0,0,0.1)',
+                                        border: '1px solid rgba(255,255,255,0.5)',
+                                        overflow: 'hidden',
+                                        zIndex: 50,
+                                        textAlign: 'left'
+                                    }}
+                                >
+                                    {isFetching ? (
+                                        <div style={{ padding: '1rem', display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--text-muted)' }}>
+                                            <div style={{ width: '16px', height: '16px', border: '2px solid rgba(0,0,0,0.1)', borderTop: '2px solid var(--primary-light)', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                                            <span>Searching...</span>
+                                        </div>
+                                    ) : (
+                                        suggestions.map((item, idx) => (
+                                            <div
+                                                key={idx}
+                                                onClick={() => handleSelectSuggestion(item.title)}
+                                                style={{
+                                                    padding: '1rem',
+                                                    cursor: 'pointer',
+                                                    borderBottom: idx < suggestions.length - 1 ? '1px solid rgba(0,0,0,0.05)' : 'none',
+                                                    transition: 'background 0.2s',
+                                                    display: 'flex',
+                                                    flexDirection: 'column',
+                                                    gap: '4px'
+                                                }}
+                                                onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(0,0,0,0.05)'}
+                                                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                            >
+                                                <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>{item.title}</span>
+                                                {item.description && (
+                                                    <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{item.description}</span>
+                                                )}
+                                            </div>
+                                        ))
+                                    )}
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                    </div>
+
+                    <button
+                        type="submit"
+                        className="glass-btn"
+                        disabled={loading || !query.trim()}
+                        style={{ opacity: (loading || !query.trim()) ? 0.7 : 1, minWidth: '140px' }}
+                    >
+                        {loading ? (
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center', width: '100%' }}>
+                                <div style={{ width: '20px', height: '20px', border: '3px solid rgba(255,255,255,0.3)', borderTop: '3px solid white', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                                Searching...
+                            </span>
+                        ) : (
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center', width: '100%' }}>
+                                <Search size={20} /> Explore
+                            </span>
+                        )}
+                    </button>
+                </form>
+            </div>
             <style>{`
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .dashboard-title {

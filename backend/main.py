@@ -5,7 +5,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 import uvicorn
-from pipeline import run_pipeline
+from pipeline import run_pipeline, search_wikipedia_candidates
 
 app = FastAPI(title="GCIES API")
 
@@ -16,6 +16,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.get("/api/search")
+def search_locations(q: str):
+    if not q:
+        return []
+    try:
+        return search_wikipedia_candidates(q)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
 
 @app.get("/api/summarize")
 def summarize_location(location_name: str):

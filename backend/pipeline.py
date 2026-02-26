@@ -21,14 +21,69 @@ except OSError:
 # Initialize Groq client
 groq_client = Groq(api_key=os.getenv("GROQ_API_KEY", "mock_key").strip())
 
-def get_best_wikipedia_title(query: str) -> str:
-    """Uses Wikipedia search API to find the closest geographical matching title."""
+def search_wikipedia_candidates(query: str) -> list:
+    """Uses Wikipedia search API to find the closest geographical matching candidates and their descriptions for autocomplete."""
     import requests
     url = "https://en.wikipedia.org/w/api.php"
     
+    # Take the raw query for autocomplete, don't split by comma here as user might not have finished typing
     params_search = {
         "action": "opensearch",
         "search": query,
+        "limit": 15,
+        "namespace": 0,
+        "format": "json"
+    }
+    headers = {"User-Agent": "GCIES-App (your@email.com)"}
+    try:
+        res_search = requests.get(url, params=params_search, headers=headers).json()
+        if len(res_search) > 1 and res_search[1]:
+            candidates = res_search[1]
+            
+            # Now fetch descriptions for these candidates
+            params_props = {
+                "action": "query",
+                "prop": "pageprops",
+                "titles": "|".join(candidates),
+                "format": "json"
+            }
+            res_props = requests.get(url, params=params_props, headers=headers).json()
+            pages = res_props.get("query", {}).get("pages", {})
+            
+            results = []
+            geo_keywords = ["city", "town", "village", "municipality", "settlement", "capital", "district", "state", "country", "neighborhood", "territory", "island", "county", "province", "region", "place", "location", "hamlet", "suburb", "borough", "township", "parish"]
+            
+            for candidate in candidates:
+                desc = ""
+                for page_id, page_data in pages.items():
+                    if page_data.get("title") == candidate:
+                        desc = page_data.get("pageprops", {}).get("wikibase-shortdesc", "")
+                        break
+                        
+                desc_lower = desc.lower()
+                if any(kw in desc_lower for kw in geo_keywords):
+                    results.append({"title": candidate, "description": desc})
+                    if len(results) >= 5:
+                        break
+                
+            return results
+    except Exception as e:
+        print(f"Error fetching candidates: {e}")
+        
+    return []
+
+def get_best_wikipedia_title(query: str) -> str:
+    """Uses Wikipedia search API to find the closest geographical matching title, with comma-separated hierarchical context support."""
+    import requests
+    url = "https://en.wikipedia.org/w/api.php"
+    
+    parts = [p.strip() for p in query.split(",")]
+    primary_query = parts[0]
+    context_terms = [p.lower() for p in parts[1:] if p.strip()]
+    
+    params_search = {
+        "action": "opensearch",
+        "search": primary_query,
         "limit": 10,
         "namespace": 0,
         "format": "json"
@@ -41,8 +96,10 @@ def get_best_wikipedia_title(query: str) -> str:
             
             params_props = {
                 "action": "query",
-                "prop": "coordinates|pageprops",
+                "prop": "coordinates|pageprops|extracts",
                 "titles": "|".join(candidates[:10]),
+                "exintro": 1,
+                "explaintext": 1,
                 "format": "json"
             }
             res_props = requests.get(url, params=params_props, headers=headers).json()
@@ -56,6 +113,7 @@ def get_best_wikipedia_title(query: str) -> str:
                     if page_data.get("title") == candidate:
                         has_coords = "coordinates" in page_data
                         desc = page_data.get("pageprops", {}).get("wikibase-shortdesc", "").lower()
+                        extract = page_data.get("extract", "").lower()
                         
                         score = 0
                         
@@ -72,6 +130,17 @@ def get_best_wikipedia_title(query: str) -> str:
                             
                         if has_coords:
                             score += 10
+                            
+                        # Context matching for hierarchical queries
+                        if context_terms:
+                            clean_candidate = candidate.lower().replace(" ", "").replace("-", "")
+                            clean_desc = desc.replace(" ", "").replace("-", "")
+                            clean_extract = extract.replace(" ", "").replace("-", "")
+                            
+                            for term in context_terms:
+                                clean_term = term.replace(" ", "").replace("-", "")
+                                if clean_term in clean_candidate or clean_term in clean_desc or clean_term in clean_extract:
+                                    score += 200
                         
                         if score > 0 and score > best_score:
                             best_score = score

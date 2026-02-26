@@ -25,7 +25,7 @@ const SearchDashboard = ({ onSearch, loading }) => {
         if (debouncedQuery.trim().length > 1) {
             setIsFetching(true);
             setShowDropdown(true);
-            fetch(`http://127.0.0.1:8000/api/search?q=${encodeURIComponent(debouncedQuery)}`)
+            fetch(`/api/search?q=${encodeURIComponent(debouncedQuery)}`)
                 .then(res => res.json())
                 .then(data => {
                     setSuggestions(data);

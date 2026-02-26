@@ -10,3 +10,6 @@ cd ..
 
 echo "Installing backend requirements..."
 pip install -r backend/requirements.txt
+
+echo "Downloading SpaCy model..."
+python -m spacy download en_core_web_sm

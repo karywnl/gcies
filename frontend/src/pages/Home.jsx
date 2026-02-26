@@ -4,6 +4,7 @@ import axios from 'axios';
 import HeroSection from '../components/HeroSection';
 import SearchDashboard from '../components/SearchDashboard';
 import ResultsDashboard from '../components/ResultsDashboard';
+import ProgressiveLoader from '../components/ProgressiveLoader';
 
 const Home = () => {
     const [data, setData] = useState(null);
@@ -69,6 +70,8 @@ const Home = () => {
             ) : (
                 <SearchDashboard onSearch={handleSearch} loading={loading} />
             )}
+
+            {loading && <ProgressiveLoader />}
 
             {error && (
                 <div className="glass-panel fade-in" style={{ padding: '1rem 2rem', color: '#ef4444', marginBottom: '2rem', border: '1px solid rgba(239, 68, 68, 0.3)', maxWidth: '800px', width: '100%', textAlign: 'center' }}>

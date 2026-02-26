@@ -53,8 +53,10 @@ Wikipedia's search naturally returns exact matches first but these aren't always
 
 ### Animated Glassmorphic UI
 - Smooth entrance/exit animations via **Framer Motion** on all views (Hero, Search, Results).
+- **Progressive Loader:** A dynamic, traffic-light colored pill badge that cycles through engaging status messages ("Locating destination...", "Analyzing regional data...") during long searches to mask API wait times.
+- **Source Transparency Banner:** A built-in warning disclaimer when viewing scraped Third-Party Village Records to ensure data integrity expectations are managed.
 - Responsive design across mobile and desktop breakpoints.
-- Sticky **Navbar** with navigation to the **About** page.
+- Sticky **Navbar** with real-time backend health monitoring (API Online/Offline).
 - Results Dashboard with a main image card and a 3-column insights grid.
 
 ### About Page
@@ -66,9 +68,9 @@ A dedicated `/about` page describing the project's mission, data pipeline philos
 
 GCIES is built on a **"fetch-filter-summarize"** NLP architecture optimized for LLM token efficiency and speed:
 
-1. **Fetch:** Reaches out to Wikipedia or the OneFiveNine village database to pull the most relevant long-form contextual data and main imagery for the queried location.
+1. **Fetch:** Reaches out to Wikipedia or the OneFiveNine village database to pull the most relevant long-form contextual data and main imagery for the queried location. These requests are parallelized using `ThreadPoolExecutor` to minimize latency. External calls are strictly timeout-bound, and repeat search queries are heavily optimized via an **LRU Cache** on the backend and **AbortControllers** on the frontend to prevent race conditions.
 2. **Filter:** The raw text is passed through an offline SpaCy NER (Named Entity Recognition) model. The backend filters the text down to only sentences containing dense Geo-Cultural entities (`GPE`, `LOC`, `FAC`, `ORG`, `EVENT`, `WORK_OF_ART`), keeping LLM costs at zero and inference fast.
-3. **Summarize:** The top 40 most information-dense sentences are handed to Groq's Llama 3.3 70B API to be structured into 6-7 rich, premium insights.
+3. **Summarize:** The top 30 most information-dense sentences are handed to Groq's Llama 3.3 70B API to be structured into concise, premium insights. For village databases lacking cultural data, a specialized low-temperature, highly restrictive prompt is used to prevent the LLM from hallucinating landmarks.
 
 ---
 

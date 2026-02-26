@@ -1,5 +1,5 @@
 const ResultsDashboard = ({ data }) => {
-    const { image_url, insights, location_name } = data;
+    const { image_url, insights, location_name, source } = data;
 
     return (
         <div className="fade-in" style={{ width: '100%', maxWidth: '1200px', animationDelay: '0.2s', margin: '2rem auto 0' }}>
@@ -18,6 +18,29 @@ const ResultsDashboard = ({ data }) => {
                                 {location_name || 'Discoveries'}
                             </h2>
                         </div>
+                    </div>
+                )}
+
+                {/* Warning banner for village source results */}
+                {source === 'onefivenine' && (
+                    <div style={{
+                        gridColumn: '1 / -1',
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: '0.75rem',
+                        padding: '0.9rem 1.25rem',
+                        borderRadius: '12px',
+                        background: 'rgba(234, 179, 8, 0.07)',
+                        border: '1px solid rgba(234, 179, 8, 0.25)',
+                        fontSize: '0.88rem',
+                        lineHeight: 1.55,
+                        color: 'var(--text-muted)',
+                    }}>
+                        <span style={{ fontSize: '1rem', marginTop: '1px' }}>⚠️</span>
+                        <span>
+                            <strong style={{ color: 'var(--text-main)', fontWeight: 600 }}>Third-Party Village Records</strong>
+                            {' — '}Detailed public information for this village is limited. We scraped this content from the internet, hence the facts below might not be entirely accurate.
+                        </span>
                     </div>
                 )}
 

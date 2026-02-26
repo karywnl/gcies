@@ -17,7 +17,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from functools import lru_cache
+
 @app.get("/api/search")
+@lru_cache(maxsize=128)
 def search_locations(q: str):
     if not q:
         return []

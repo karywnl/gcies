@@ -8,6 +8,15 @@ const SearchDashboard = ({ onSearch, loading }) => {
     const [showDropdown, setShowDropdown] = useState(false);
     const [debouncedQuery, setDebouncedQuery] = useState('');
     const [isFetching, setIsFetching] = useState(false);
+    const [isFocused, setIsFocused] = useState(false);
+
+    // Hide dropdown instantly when main search starts
+    useEffect(() => {
+        if (loading) {
+            setShowDropdown(false);
+            setIsFetching(false);
+        }
+    }, [loading]);
 
     // Debounce effect
     useEffect(() => {
@@ -22,27 +31,37 @@ const SearchDashboard = ({ onSearch, loading }) => {
 
     // Fetch suggestions
     useEffect(() => {
-        if (debouncedQuery.trim().length > 1) {
+        const controller = new AbortController();
+        const signal = controller.signal;
+
+        if (debouncedQuery.trim().length > 1 && isFocused && !loading) {
             setIsFetching(true);
             setShowDropdown(true);
-            fetch(`/api/search?q=${encodeURIComponent(debouncedQuery)}`)
+            fetch(`/api/search?q=${encodeURIComponent(debouncedQuery)}`, { signal })
                 .then(res => res.json())
                 .then(data => {
                     setSuggestions(data);
                     setIsFetching(false);
-                    // Keep dropdown open if we got data or not, but it might just say no results
                 })
                 .catch(err => {
-                    console.error("Autocomplete Error:", err);
-                    setSuggestions([]);
-                    setIsFetching(false);
-                    setShowDropdown(false);
+                    if (err.name === 'AbortError') {
+                        console.log('Search fetch aborted for stale query');
+                    } else {
+                        console.error("Autocomplete Error:", err);
+                        setSuggestions([]);
+                        setIsFetching(false);
+                        setShowDropdown(false);
+                    }
                 });
         } else {
             setSuggestions([]);
             setIsFetching(false);
             setShowDropdown(false);
         }
+
+        return () => {
+            controller.abort();
+        };
     }, [debouncedQuery]);
 
     const handleSubmit = (e) => {
@@ -87,11 +106,19 @@ const SearchDashboard = ({ onSearch, loading }) => {
                         <input
                             type="text"
                             className="glass-input"
-                            placeholder="Salem, Tamil Nadu"
+                            placeholder="Sankanrankovil, Tamil Nadu"
                             value={query}
                             onChange={(e) => setQuery(e.target.value)}
-                            onFocus={() => { if (suggestions.length > 0 || isFetching) setShowDropdown(true); }}
-                            onBlur={() => setTimeout(() => setShowDropdown(false), 200)} // delay to allow clicks
+                            onFocus={() => {
+                                setIsFocused(true);
+                                if (suggestions.length > 0 || isFetching) setShowDropdown(true);
+                            }}
+                            onBlur={() => {
+                                setTimeout(() => {
+                                    setIsFocused(false);
+                                    setShowDropdown(false);
+                                }, 250);
+                            }}
                             style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(255, 255, 255, 0.8)' }}
                         />
                         <AnimatePresence>
@@ -161,16 +188,9 @@ const SearchDashboard = ({ onSearch, loading }) => {
                         disabled={loading || !query.trim()}
                         style={{ opacity: (loading || !query.trim()) ? 0.7 : 1, minWidth: '140px' }}
                     >
-                        {loading ? (
-                            <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center', width: '100%' }}>
-                                <div style={{ width: '20px', height: '20px', border: '3px solid rgba(255,255,255,0.3)', borderTop: '3px solid white', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-                                Searching...
-                            </span>
-                        ) : (
-                            <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center', width: '100%' }}>
-                                <Search size={20} /> Explore
-                            </span>
-                        )}
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center', width: '100%' }}>
+                            <Search size={20} /> Explore
+                        </span>
                     </button>
                 </form>
             </div>

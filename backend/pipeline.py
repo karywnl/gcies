@@ -4,6 +4,8 @@ import spacy
 from groq import Groq
 from typing import Dict
 from dotenv import load_dotenv
+from functools import lru_cache
+import concurrent.futures
 
 load_dotenv(override=True)
 
@@ -36,7 +38,7 @@ def search_wikipedia_candidates(query: str) -> list:
     }
     headers = {"User-Agent": "GCIES-App (your@email.com)"}
     try:
-        res_search = requests.get(url, params=params_search, headers=headers).json()
+        res_search = requests.get(url, params=params_search, headers=headers, timeout=5).json()
         if len(res_search) > 1 and res_search[1]:
             candidates = res_search[1]
             
@@ -47,7 +49,7 @@ def search_wikipedia_candidates(query: str) -> list:
                 "titles": "|".join(candidates),
                 "format": "json"
             }
-            res_props = requests.get(url, params=params_props, headers=headers).json()
+            res_props = requests.get(url, params=params_props, headers=headers, timeout=5).json()
             pages = res_props.get("query", {}).get("pages", {})
             
             results = []
@@ -81,7 +83,7 @@ def search_onefivenine_candidates(query: str) -> list:
     url = "https://www.onefivenine.com/autoComplete.dont?method=completeVillages"
     headers = {"User-Agent": "Mozilla/5.0"}
     try:
-        res = requests.post(url, data={"queryString": query}, headers=headers)
+        res = requests.post(url, data={"queryString": query}, headers=headers, timeout=5)
         if res.status_code == 200 and res.text.strip():
             soup = BeautifulSoup(res.text, 'html.parser')
             results = []
@@ -163,7 +165,7 @@ def get_best_wikipedia_title(query: str) -> str:
     }
     headers = {"User-Agent": "GCIES-App (your@email.com)"}
     try:
-        res_search = requests.get(url, params=params_search, headers=headers).json()
+        res_search = requests.get(url, params=params_search, headers=headers, timeout=8).json()
         if len(res_search) > 1 and res_search[1]:
             candidates = res_search[1]
             
@@ -173,9 +175,10 @@ def get_best_wikipedia_title(query: str) -> str:
                 "titles": "|".join(candidates[:10]),
                 "exintro": 1,
                 "explaintext": 1,
+                "exchars": 500,  # Cap extract size — enough for context matching, much faster
                 "format": "json"
             }
-            res_props = requests.get(url, params=params_props, headers=headers).json()
+            res_props = requests.get(url, params=params_props, headers=headers, timeout=8).json()
             pages = res_props.get("query", {}).get("pages", {})
             
             best_candidate = None
@@ -228,19 +231,19 @@ def get_best_wikipedia_title(query: str) -> str:
     return None
 
 def fetch_wikipedia_data(location_name: str) -> dict:
-    """Fetches raw text and attempts to get main image from Wikipedia."""
+    """Fetches raw text and image from Wikipedia, parallelising both requests."""
     best_title = get_best_wikipedia_title(location_name)
     
     if not best_title:
         raise ValueError(f"Could not identify a geographical location for: '{location_name}'. Please try being more specific.")
-        
-    page = wiki_wiki.page(best_title)
-    if not page.exists():
-        raise ValueError(f"Could not find Wikipedia page for: '{location_name}' (Tried: '{best_title}')")
-    
+
     import requests
-    image_url = None
-    try:
+    headers = {"User-Agent": "GCIES-App (your@email.com)"}
+
+    def _fetch_page_text():
+        return wiki_wiki.page(best_title)
+
+    def _fetch_image():
         url = "https://en.wikipedia.org/w/api.php"
         params = {
             "action": "query",
@@ -249,14 +252,25 @@ def fetch_wikipedia_data(location_name: str) -> dict:
             "format": "json",
             "pithumbsize": 1000
         }
-        res = requests.get(url, params=params, headers={"User-Agent": "GCIES-App (your@email.com)"}).json()
-        pages = res.get("query", {}).get("pages", {})
-        for page_id in pages:
-            if "thumbnail" in pages[page_id]:
-                image_url = pages[page_id]["thumbnail"]["source"]
-                break
-    except Exception as e:
-        print(f"Error fetching image: {e}")
+        try:
+            res = requests.get(url, params=params, headers=headers, timeout=8).json()
+            pages = res.get("query", {}).get("pages", {})
+            for page_id in pages:
+                if "thumbnail" in pages[page_id]:
+                    return pages[page_id]["thumbnail"]["source"]
+        except Exception as e:
+            print(f"Error fetching image: {e}")
+        return None
+
+    # Fetch page text and image in parallel
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+        page_future = executor.submit(_fetch_page_text)
+        image_future = executor.submit(_fetch_image)
+        page = page_future.result()
+        image_url = image_future.result()
+
+    if not page.exists():
+        raise ValueError(f"Could not find Wikipedia page for: '{location_name}' (Tried: '{best_title}')")
 
     return {
         "text": page.text,
@@ -277,8 +291,8 @@ def filter_geocultural_entities(text: str) -> str:
         if has_target:
             relevant_sentences.append(sent.text.strip())
             
-    # Limit to top 30 filtered sentences to avoid exceeding LLM token limits while providing dense facts
-    return " ".join(relevant_sentences[:40])
+    # Limit to top 30 filtered sentences — sufficient for the LLM, faster than 40
+    return " ".join(relevant_sentences[:30])
 
 def summarize_with_groq(text: str, location_name: str) -> Dict[str, str]:
     """Uses Groq's Llama 3 70B to generate exactly 6-7 key insights."""
@@ -318,6 +332,7 @@ Text:
             "details": str(e)
         }
 
+@lru_cache(maxsize=128)
 def run_pipeline(location_name: str, source: str = "wikipedia", path: str = None):
     if source == "onefivenine" and path:
         data = fetch_onefivenine_data(path)
@@ -336,5 +351,6 @@ def run_pipeline(location_name: str, source: str = "wikipedia", path: str = None
     return {
         "location_name": data["title"],
         "image_url": data["image_url"],
-        "insights": insights
+        "insights": insights,
+        "source": source,
     }

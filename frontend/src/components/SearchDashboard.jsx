@@ -48,13 +48,14 @@ const SearchDashboard = ({ onSearch, loading }) => {
     const handleSubmit = (e) => {
         e.preventDefault();
         setShowDropdown(false);
-        onSearch(query);
+        // Default to a wikipedia search structure if no dropdown item is clicked directly
+        onSearch({ title: query, source: "wikipedia", path: null });
     };
 
-    const handleSelectSuggestion = (suggestionTitle) => {
-        setQuery(suggestionTitle);
+    const handleSelectSuggestion = (suggestion) => {
+        setQuery(suggestion.title);
         setShowDropdown(false);
-        onSearch(suggestionTitle); // Instantly search
+        onSearch(suggestion); // Instantly search using the selected object
     };
 
     return (
@@ -124,7 +125,7 @@ const SearchDashboard = ({ onSearch, loading }) => {
                                         suggestions.map((item, idx) => (
                                             <div
                                                 key={idx}
-                                                onClick={() => handleSelectSuggestion(item.title)}
+                                                onClick={() => handleSelectSuggestion(item)}
                                                 style={{
                                                     padding: '1rem',
                                                     cursor: 'pointer',
@@ -138,9 +139,14 @@ const SearchDashboard = ({ onSearch, loading }) => {
                                                 onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                                             >
                                                 <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>{item.title}</span>
-                                                {item.description && (
-                                                    <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{item.description}</span>
-                                                )}
+                                                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                                    {item.source === 'onefivenine' && (
+                                                        <span style={{ fontSize: '0.7rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(230, 240, 255, 0.8)', color: '#3182ce', fontWeight: 600 }}>Village DB</span>
+                                                    )}
+                                                    {item.description && (
+                                                        <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{item.description}</span>
+                                                    )}
+                                                </div>
                                             </div>
                                         ))
                                     )}

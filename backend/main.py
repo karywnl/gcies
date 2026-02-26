@@ -5,7 +5,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 import uvicorn
-from pipeline import run_pipeline, search_wikipedia_candidates
+from pipeline import run_pipeline, search_wikipedia_candidates, search_onefivenine_candidates
 
 app = FastAPI(title="GCIES API")
 
@@ -22,16 +22,27 @@ def search_locations(q: str):
     if not q:
         return []
     try:
-        return search_wikipedia_candidates(q)
+        import concurrent.futures
+        
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            wiki_future = executor.submit(search_wikipedia_candidates, q)
+            ofn_future = executor.submit(search_onefivenine_candidates, q)
+            
+            wiki_results = wiki_future.result()
+            onefivenine_results = ofn_future.result()
+            
+        # Combine the results
+        combined = wiki_results + onefivenine_results
+        return combined
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
 
 @app.get("/api/summarize")
-def summarize_location(location_name: str):
+def summarize_location(location_name: str, source: str = "wikipedia", path: str = None):
     if not location_name:
         raise HTTPException(status_code=400, detail="location_name is required")
     try:
-        result = run_pipeline(location_name)
+        result = run_pipeline(location_name, source, path)
         return result
     except ValueError as ve:
         raise HTTPException(status_code=404, detail=str(ve))

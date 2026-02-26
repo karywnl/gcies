@@ -62,7 +62,7 @@ def search_wikipedia_candidates(query: str) -> list:
                         
                 desc_lower = desc.lower()
                 if any(kw in desc_lower for kw in geo_keywords):
-                    results.append({"title": candidate, "description": desc})
+                    results.append({"title": candidate, "description": desc, "source": "wikipedia"})
                     if len(results) >= 5:
                         break
                 
@@ -71,6 +71,79 @@ def search_wikipedia_candidates(query: str) -> list:
         print(f"Error fetching candidates: {e}")
         
     return []
+
+def search_onefivenine_candidates(query: str) -> list:
+    """Uses OneFiveNine autoComplete endpoint to find matching villages."""
+    import requests
+    from bs4 import BeautifulSoup
+    import re
+    
+    url = "https://www.onefivenine.com/autoComplete.dont?method=completeVillages"
+    headers = {"User-Agent": "Mozilla/5.0"}
+    try:
+        res = requests.post(url, data={"queryString": query}, headers=headers)
+        if res.status_code == 200 and res.text.strip():
+            soup = BeautifulSoup(res.text, 'html.parser')
+            results = []
+            for li in soup.find_all('li'):
+                onclick = li.get('onclick', '')
+                match = re.search(r"fill\('([^']+)'\)", onclick)
+                if match:
+                    path = match.group(1)
+                    title = li.get_text(strip=True)
+                    # Example title: Thandampalayam,Satyamangalam
+                    results.append({
+                        "title": title,
+                        "description": "Village in India",
+                        "source": "onefivenine",
+                        "path": path
+                    })
+                    if len(results) >= 5:
+                        break
+            return results
+    except Exception as e:
+        print(f"Error fetching OneFiveNine candidates: {e}")
+        
+    return []
+
+def fetch_onefivenine_data(path: str) -> dict:
+    """Scrapes raw text from a specific OneFiveNine village page."""
+    import requests
+    from bs4 import BeautifulSoup
+    
+    url = f"https://www.onefivenine.com/india/villages/{path}"
+    headers = {"User-Agent": "Mozilla/5.0"}
+    
+    res = requests.get(url, headers=headers)
+    if res.status_code != 200:
+        raise ValueError(f"Could not load OneFiveNine page for path: {path}")
+        
+    soup = BeautifulSoup(res.text, 'html.parser')
+    
+    # Extract Title gracefully
+    title_element = soup.find('h1') or soup.find('title')
+    title = title_element.get_text(strip=True) if title_element else path.split('/')[-1]
+    
+    # OneFiveNine pages are quite messy, `stripped_strings` drops script tags implicitly for most parts, 
+    # but removing style/script elements is safer.
+    for script_or_style in soup(['script', 'style', 'nav', 'footer']):
+        script_or_style.decompose()
+        
+    text = ". ".join(soup.stripped_strings)
+    
+    # Distance Ambiguity Fix
+    # The bottom of the page lists distant things like "Colleges near X" or "HOW TO REACH X".
+    import re
+    cutoff_match = re.search(r"(HOW TO REACH|Colleges near|Colleges in|Schools near|Schools in|Petrol Bunks in)", text, re.IGNORECASE)
+    if cutoff_match:
+        text = text[:cutoff_match.start()]
+    
+    return {
+        "text": text,
+        "summary": text[:500],
+        "title": title,
+        "image_url": None
+    }
 
 def get_best_wikipedia_title(query: str) -> str:
     """Uses Wikipedia search API to find the closest geographical matching title, with comma-separated hierarchical context support."""
@@ -245,20 +318,23 @@ Text:
             "details": str(e)
         }
 
-def run_pipeline(location_name: str):
-    wiki_data = fetch_wikipedia_data(location_name)
+def run_pipeline(location_name: str, source: str = "wikipedia", path: str = None):
+    if source == "onefivenine" and path:
+        data = fetch_onefivenine_data(path)
+    else:
+        data = fetch_wikipedia_data(location_name)
     
     # Process the full page text for deep extraction
-    filtered_text = filter_geocultural_entities(wiki_data["text"])
+    filtered_text = filter_geocultural_entities(data["text"])
     
     # If the page is too short, fallback to summary
     if len(filtered_text) < 100:
-        filtered_text = filter_geocultural_entities(wiki_data["summary"])
+        filtered_text = filter_geocultural_entities(data["summary"])
         
-    insights = summarize_with_groq(filtered_text, wiki_data["title"])
+    insights = summarize_with_groq(filtered_text, data["title"])
     
     return {
-        "location_name": wiki_data["title"],
-        "image_url": wiki_data["image_url"],
+        "location_name": data["title"],
+        "image_url": data["image_url"],
         "insights": insights
     }

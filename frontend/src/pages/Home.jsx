@@ -36,14 +36,19 @@ const Home = () => {
         }
     }, [data]);
 
-    const handleSearch = async (query) => {
-        if (!query.trim()) return;
+    const handleSearch = async (searchObj) => {
+        const query = searchObj.title;
+        if (!query || !query.trim()) return;
         setLoading(true);
         setError(null);
         setData(null);
 
         try {
-            const response = await axios.get(`/api/summarize?location_name=${encodeURIComponent(query)}`);
+            let url = `/api/summarize?location_name=${encodeURIComponent(query)}`;
+            if (searchObj.source) url += `&source=${encodeURIComponent(searchObj.source)}`;
+            if (searchObj.path) url += `&path=${encodeURIComponent(searchObj.path)}`;
+
+            const response = await axios.get(url);
             setData(response.data);
         } catch (err) {
             if (err.response && err.response.status === 404) {

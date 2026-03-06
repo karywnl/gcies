@@ -87,7 +87,7 @@ const SearchDashboard = ({ onSearch, loading }) => {
             style={{
                 width: '100%',
                 maxWidth: '800px',
-                marginTop: '15vh',
+                marginTop: '12vh',
                 marginBottom: '4rem',
                 display: 'flex',
                 flexDirection: 'column',
@@ -96,8 +96,8 @@ const SearchDashboard = ({ onSearch, loading }) => {
             }}
         >
             <div style={{ textAlign: 'center', marginBottom: '0.5rem' }}>
-                <h2 className="gradient-text floating dashboard-title" style={{ fontWeight: 700, marginBottom: '1rem', letterSpacing: '-0.02em' }}>Where to next?</h2>
-                <p style={{ color: 'var(--text-muted)', fontSize: '1.2rem' }}>Type a location to see suggestions or press explore.</p>
+                <h2 className="gradient-text floating dashboard-title" style={{ fontWeight: 700, marginBottom: '1rem', letterSpacing: '-0.02em' }}>Where Are We Headed?</h2>
+                <p style={{ color: 'var(--text-muted)', fontSize: '1.15rem', lineHeight: 1.6 }}>Search for any place on Earth. We'll handle the rest.</p>
             </div>
 
             <div style={{ position: 'relative', width: '100%', display: 'flex', justifyContent: 'center' }}>
@@ -106,7 +106,7 @@ const SearchDashboard = ({ onSearch, loading }) => {
                         <input
                             type="text"
                             className="glass-input"
-                            placeholder="Sankanrankovil, Tamil Nadu"
+                            placeholder="Sankarankovil, Tamil Nadu"
                             value={query}
                             onChange={(e) => setQuery(e.target.value)}
                             onFocus={() => {
@@ -197,7 +197,7 @@ const SearchDashboard = ({ onSearch, loading }) => {
             <style>{`
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .dashboard-title {
-            font-size: 4rem;
+            font-size: 3.75rem;
         }
         @media (max-width: 768px) {
             #search-dashboard {
@@ -205,7 +205,7 @@ const SearchDashboard = ({ onSearch, loading }) => {
                 margin-top: 10vh !important;
             }
             .dashboard-title {
-                font-size: 2.5rem !important;
+                font-size: 2.25rem !important;
             }
         }
       `}</style>

@@ -28,43 +28,43 @@ const HeroSection = ({ onStartExploring }) => {
             animate="visible"
             style={{
                 textAlign: 'center',
-                marginTop: '10vh',
-                marginBottom: '10vh',
+                marginTop: '12vh',
+                marginBottom: '12vh',
                 width: '100%',
                 maxWidth: '900px',
                 display: 'flex',
                 flexDirection: 'column',
-                alignItems: 'center'
+                alignItems: 'center',
+                gap: '2rem'
             }}
         >
             <motion.h1
                 variants={itemVariants}
                 className="gradient-text hero-headline floating"
                 style={{
-                    fontSize: '4.5rem',
+                    fontSize: '3.75rem',
                     fontWeight: 800,
-                    marginBottom: '1.25rem',
+                    marginBottom: '0',
                     letterSpacing: '-0.03em',
                     lineHeight: 1.1,
                     textShadow: '0 10px 30px rgba(59, 130, 246, 0.15)'
                 }}
             >
-                Discover the World
+                Every Place Has a Story
             </motion.h1>
 
             <motion.p
                 variants={itemVariants}
                 className="hero-subheadline"
                 style={{
-                    fontSize: '1.25rem',
+                    fontSize: '1.2rem',
                     color: 'var(--text-muted)',
-                    marginBottom: '3rem',
                     maxWidth: '600px',
-                    margin: '0 auto 3rem auto',
+                    margin: '0 auto',
                     lineHeight: 1.6
                 }}
             >
-                Enter a village or town name to uncover its hidden gems, rich culture, and historical landmarks instantly.
+                From forgotten villages to iconic cities, just type a name and let our AI uncover the culture, landmarks, and history that make it remarkable.
             </motion.p>
 
             <motion.div variants={itemVariants}>

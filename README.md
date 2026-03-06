@@ -66,11 +66,14 @@ While the backend handles heavy processing, the frontend is designed to strictly
 
 ## Architecture Overview
 
-GCIES is built on a **"fetch-filter-summarize"** NLP architecture optimized for LLM token efficiency and speed:
+GCIES is built on a **"input-fetch-score-filter-summarize-cache"** NLP architecture optimized for LLM token efficiency and speed:
 
-1. **Fetch:** Reaches out to Wikipedia or the OneFiveNine village database to pull the most relevant long-form contextual data and main imagery for the queried location. These requests are parallelized using `ThreadPoolExecutor` to minimize latency. External calls are strictly timeout-bound, and repeat search queries are heavily optimized via an **LRU Cache** on the backend and **AbortControllers** on the frontend to prevent race conditions.
-2. **Filter:** The raw text is passed through an offline SpaCy NER (Named Entity Recognition) model. The backend filters the text down to only sentences containing dense Geo-Cultural entities (`GPE`, `LOC`, `FAC`, `ORG`, `EVENT`, `WORK_OF_ART`), keeping LLM costs at zero and inference fast.
-3. **Summarize:** The top 30 most information-dense sentences are handed to Groq's Llama 3.3 70B API to be structured into concise, premium insights. For village databases lacking cultural data, a specialized low-temperature, highly restrictive prompt is used to prevent the LLM from hallucinating landmarks.
+1. **User Input:** The user types a location name into the React frontend. As they type, a debounced autocomplete fires real-time suggestions from the backend. Once a location is selected, the frontend dispatches the extraction request to the FastAPI server.
+2. **Fetch:** The backend launches parallel requests to Wikipedia and the OneFiveNine village database using `ThreadPoolExecutor`. Both sources are queried simultaneously so that latency is determined by the slowest source, not the sum of both.
+3. **Score:** The raw search results from both sources are passed through a custom Geographic Scoring Algorithm. It awards points for physical location descriptors (+50 for "town", +10 for coordinates) and penalizes non-places (-30 for "constituency"). The highest-scoring result is selected, and its full article content and main imagery are extracted.
+4. **Filter (SpaCy NER):** The raw article text is passed through an offline SpaCy NER model. Only sentences containing dense Geo-Cultural entities (`GPE`, `LOC`, `FAC`, `ORG`, `EVENT`, `WORK_OF_ART`) are kept, reducing the payload by over 80%.
+5. **Summarize (Groq LLM):** The top 30 most information-dense sentences are handed to Groq's Llama 3.3 70B to be structured into 6-7 concise insights. For village databases lacking cultural data, a specialized low-temperature prompt prevents hallucination.
+6. **Cache (Upstash Redis):** The final response is stored in an Upstash Redis cache via REST API with a 12-hour TTL (43,200s). On subsequent requests for the same location, the cached response is returned in ~50ms, completely bypassing the entire pipeline. This is what transforms a heavy AI workload into a lightning-fast static query.
 
 ---
 

@@ -1,7 +1,7 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Home from './pages/Home';
-import About from './pages/About';
+import Architecture from './pages/Architecture';
 import './App.css';
 
 function App() {
@@ -14,7 +14,7 @@ function App() {
       <main style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '10rem 1rem 3rem 1rem' }}>
         <Routes>
           <Route path="/" element={<Home />} />
-          <Route path="/about" element={<About />} />
+          <Route path="/about" element={<Architecture />} />
         </Routes>
       </main>
     </Router>

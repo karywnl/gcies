@@ -176,3 +176,32 @@ body {
     padding: 1.5rem !important;
   }
 }
+
+/* Architecture Pipeline Animations */
+@keyframes pipelineSlide {
+  0% {
+    transform: translateX(-100%);
+  }
+
+  100% {
+    transform: translateX(500%);
+  }
+}
+
+.animate-pipeline-flow {
+  animation: pipelineSlide 3s ease-in-out infinite;
+}
+
+@media (max-width: 768px) {
+  .pipeline-flow {
+    flex-direction: column !important;
+  }
+
+  .pipeline-arrow {
+    transform: rotate(90deg);
+  }
+
+  .pipeline-node {
+    min-width: 160px !important;
+  }
+}

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Compass, Menu, X } from 'lucide-react';
+import { Compass, Menu, X, Github } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const Navbar = () => {
@@ -101,12 +101,22 @@ const Navbar = () => {
                             to="/about"
                             className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
                         >
-                            About Us
+                            Architecture
                         </NavLink>
                     </div>
 
-                    {/* Right: API Status & Hamburger */}
+                    {/* Right: GitHub, API Status & Hamburger */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                        <a
+                            href="https://github.com/karywnl/gcies"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ display: 'flex', alignItems: 'center', color: 'var(--text-muted)', transition: 'color 0.3s ease' }}
+                            onMouseEnter={(e) => e.currentTarget.style.color = 'var(--primary)'}
+                            onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
+                        >
+                            <Github size={20} />
+                        </a>
                         <div style={{ padding: '0.4rem 0.8rem', background: 'transparent', borderRadius: '9999px', border: 'none' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)' }}>
                                 {isApiLive === null ? (
@@ -163,7 +173,7 @@ const Navbar = () => {
                                 className={({ isActive }) => isActive ? 'nav-link active mobile-link' : 'nav-link mobile-link'}
                                 onClick={closeMobileMenu}
                             >
-                                About Us
+                                Architecture
                             </NavLink>
                         </motion.div>
                     )}

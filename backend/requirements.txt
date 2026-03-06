@@ -8,3 +8,4 @@ pydantic
 requests
 beautifulsoup4
 lxml
+upstash-redis

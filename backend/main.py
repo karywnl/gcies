@@ -1,5 +1,7 @@
 import os
+import json
 from fastapi import FastAPI, HTTPException, Request
+from database import redis_client
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -44,8 +46,33 @@ def search_locations(q: str):
 def summarize_location(location_name: str, source: str = "wikipedia", path: str = None):
     if not location_name:
         raise HTTPException(status_code=400, detail="location_name is required")
+        
+    cache_key = f"summary:{source}:{location_name}"
+    
+    # 1. Check Upstash for the location_name
+    if redis_client:
+        try:
+            cached_result = redis_client.get(cache_key)
+            if cached_result:
+                print(f"Cache hit for {location_name}")
+                if isinstance(cached_result, str):
+                    return json.loads(cached_result)
+                return cached_result
+        except Exception as e:
+            print(f"Redis cache read error: {e}")
+            
+    # 2. Run the extraction generation
     try:
         result = run_pipeline(location_name, source, path)
+        
+        # 3. Save the result to Upstash with exactly a 12-hour expiration (TTL 43200 seconds)
+        if redis_client:
+            try:
+                redis_client.set(cache_key, json.dumps(result), ex=43200)
+                print(f"Cached result for {location_name}")
+            except Exception as e:
+                print(f"Redis cache write error: {e}")
+                
         return result
     except ValueError as ve:
         raise HTTPException(status_code=404, detail=str(ve))

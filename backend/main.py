@@ -74,6 +74,7 @@ async def summarize_location(location_name: str, source: str = "wikipedia", path
         try:
             cached_result = await redis_client.get(cache_key)
             if cached_result:
+                print(f"✅ Cache HIT for {location_name}")
                 logger.info("Cache hit for %s", location_name)
                 if isinstance(cached_result, str):
                     cached_result = json.loads(cached_result)
@@ -81,8 +82,13 @@ async def summarize_location(location_name: str, source: str = "wikipedia", path
                     content=cached_result,
                     headers={"X-Pipeline-Duration-Ms": "0", "X-Cache": "HIT"}
                 )
+            else:
+                print(f"❌ Cache MISS (empty) for {location_name}")
         except Exception as e:
+            print(f"⚠️ Redis cache read error: {e}")
             logger.warning("Redis cache read error: %s", e)
+    else:
+        print("⚠️ Skipping cache read: redis_client is None")
 
     # 2. Run the extraction pipeline and measure duration
     start = time.perf_counter()
@@ -95,9 +101,13 @@ async def summarize_location(location_name: str, source: str = "wikipedia", path
         if redis_client:
             try:
                 await redis_client.set(cache_key, json.dumps(result), ex=43200)
+                print(f"✅ Cached result written for {location_name}")
                 logger.info("Cached result for %s", location_name)
             except Exception as e:
+                print(f"⚠️ Redis cache write error: {e}")
                 logger.warning("Redis cache write error: %s", e)
+        else:
+            print("⚠️ Skipping cache write: redis_client is None")
 
         return JSONResponse(
             content=result,

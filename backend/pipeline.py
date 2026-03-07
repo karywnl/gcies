@@ -1,16 +1,29 @@
 import os
+import re
+import json
+import logging
+import concurrent.futures
+from typing import Dict
+
+import requests
 import wikipediaapi
 import spacy
 from groq import Groq
-from typing import Dict
+from bs4 import BeautifulSoup
 from dotenv import load_dotenv
-from functools import lru_cache
-import concurrent.futures
 
 load_dotenv(override=True)
 
+logger = logging.getLogger(__name__)
+
+# Constants
+USER_AGENT = "GCIES-App (contact@gcies.app)"
+MAX_NER_CHARS = 10_000  # Truncate text before SpaCy NER to limit processing time
+PRIMARY_MODEL = "llama-3.3-70b-versatile"
+FALLBACK_MODEL = "llama-3.1-8b-instant"
+
 # Initialize Wikipedia API
-wiki_wiki = wikipediaapi.Wikipedia('GCIES-App (your@email.com)', 'en')
+wiki_wiki = wikipediaapi.Wikipedia(USER_AGENT, 'en')
 
 # Load SpaCy model
 try:
@@ -25,7 +38,6 @@ groq_client = Groq(api_key=os.getenv("GROQ_API_KEY", "mock_key").strip())
 
 def search_wikipedia_candidates(query: str) -> list:
     """Uses Wikipedia search API to find the closest geographical matching candidates and their descriptions for autocomplete."""
-    import requests
     url = "https://en.wikipedia.org/w/api.php"
     
     # Take the raw query for autocomplete, don't split by comma here as user might not have finished typing
@@ -36,7 +48,7 @@ def search_wikipedia_candidates(query: str) -> list:
         "namespace": 0,
         "format": "json"
     }
-    headers = {"User-Agent": "GCIES-App (your@email.com)"}
+    headers = {"User-Agent": USER_AGENT}
     try:
         res_search = requests.get(url, params=params_search, headers=headers, timeout=5).json()
         if len(res_search) > 1 and res_search[1]:
@@ -70,14 +82,12 @@ def search_wikipedia_candidates(query: str) -> list:
                 
             return results
     except Exception as e:
-        print(f"Error fetching candidates: {e}")
+        logger.warning("Error fetching Wikipedia candidates: %s", e)
         
     return []
 
 def search_onefivenine_candidates(query: str) -> list:
     """Uses OneFiveNine autoComplete endpoint to find matching villages."""
-    import requests
-    from bs4 import BeautifulSoup
     import re
     
     url = "https://www.onefivenine.com/autoComplete.dont?method=completeVillages"
@@ -104,14 +114,12 @@ def search_onefivenine_candidates(query: str) -> list:
                         break
             return results
     except Exception as e:
-        print(f"Error fetching OneFiveNine candidates: {e}")
+        logger.warning("Error fetching OneFiveNine candidates: %s", e)
         
     return []
 
 def fetch_onefivenine_data(path: str) -> dict:
     """Scrapes raw text from a specific OneFiveNine village page."""
-    import requests
-    from bs4 import BeautifulSoup
     
     url = f"https://www.onefivenine.com/india/villages/{path}"
     headers = {"User-Agent": "Mozilla/5.0"}
@@ -135,7 +143,6 @@ def fetch_onefivenine_data(path: str) -> dict:
     
     # Distance Ambiguity Fix
     # The bottom of the page lists distant things like "Colleges near X" or "HOW TO REACH X".
-    import re
     cutoff_match = re.search(r"(HOW TO REACH|Colleges near|Colleges in|Schools near|Schools in|Petrol Bunks in)", text, re.IGNORECASE)
     if cutoff_match:
         text = text[:cutoff_match.start()]
@@ -149,7 +156,6 @@ def fetch_onefivenine_data(path: str) -> dict:
 
 def get_best_wikipedia_title(query: str) -> str:
     """Uses Wikipedia search API to find the closest geographical matching title, with comma-separated hierarchical context support."""
-    import requests
     url = "https://en.wikipedia.org/w/api.php"
     
     parts = [p.strip() for p in query.split(",")]
@@ -163,7 +169,7 @@ def get_best_wikipedia_title(query: str) -> str:
         "namespace": 0,
         "format": "json"
     }
-    headers = {"User-Agent": "GCIES-App (your@email.com)"}
+    headers = {"User-Agent": USER_AGENT}
     try:
         res_search = requests.get(url, params=params_search, headers=headers, timeout=8).json()
         if len(res_search) > 1 and res_search[1]:
@@ -226,7 +232,7 @@ def get_best_wikipedia_title(query: str) -> str:
                 return best_candidate
                 
     except Exception as e:
-        print(f"Error finding best title: {e}")
+        logger.warning("Error finding best title: %s", e)
         
     return None
 
@@ -237,8 +243,7 @@ def fetch_wikipedia_data(location_name: str) -> dict:
     if not best_title:
         raise ValueError(f"Could not identify a geographical location for: '{location_name}'. Please try being more specific.")
 
-    import requests
-    headers = {"User-Agent": "GCIES-App (your@email.com)"}
+    headers = {"User-Agent": USER_AGENT}
 
     def _fetch_page_text():
         return wiki_wiki.page(best_title)
@@ -259,7 +264,7 @@ def fetch_wikipedia_data(location_name: str) -> dict:
                 if "thumbnail" in pages[page_id]:
                     return pages[page_id]["thumbnail"]["source"]
         except Exception as e:
-            print(f"Error fetching image: {e}")
+            logger.warning("Error fetching image: %s", e)
         return None
 
     # Fetch page text and image in parallel
@@ -281,7 +286,9 @@ def fetch_wikipedia_data(location_name: str) -> dict:
 
 def filter_geocultural_entities(text: str) -> str:
     """Filters sentences containing specific geographical or cultural entities."""
-    doc = nlp(text)
+    # Truncate long texts before NER to avoid multi-second SpaCy processing
+    truncated = text[:MAX_NER_CHARS] if len(text) > MAX_NER_CHARS else text
+    doc = nlp(truncated)
     relevant_sentences = []
     
     target_labels = {"GPE", "LOC", "FAC", "ORG", "NORP", "EVENT", "WORK_OF_ART"}
@@ -308,31 +315,39 @@ Do NOT wrap the JSON in markdown blocks, just return the raw JSON.
 Text:
 {text}
 """
-    try:
-        response = groq_client.chat.completions.create(
-            messages=[
-                {
-                    "role": "user",
-                    "content": prompt,
-                }
-            ],
-            model="llama-3.3-70b-versatile",
-            temperature=0.3,
-            max_completion_tokens=700,
-            response_format={"type": "json_object"}
-        )
-        import json
-        content = response.choices[0].message.content
-        insights = json.loads(content)
-        return insights
-    except Exception as e:
-        print(f"Groq API Error: {e}")
-        return {
-            "error": "Failed to generate insights. Please check if your Groq API key is valid.",
-            "details": str(e)
-        }
+    models = [PRIMARY_MODEL, FALLBACK_MODEL]
 
-@lru_cache(maxsize=128)
+    for model in models:
+        try:
+            response = groq_client.chat.completions.create(
+                messages=[
+                    {
+                        "role": "user",
+                        "content": prompt,
+                    }
+                ],
+                model=model,
+                temperature=0.3,
+                max_completion_tokens=700,
+                response_format={"type": "json_object"},
+                timeout=30,
+            )
+            content = response.choices[0].message.content
+            insights = json.loads(content)
+            if model == FALLBACK_MODEL:
+                logger.info("Used fallback model %s successfully", FALLBACK_MODEL)
+            return insights
+        except Exception as e:
+            error_msg = str(e).lower()
+            is_rate_limit = "rate_limit" in error_msg or "429" in error_msg
+            if is_rate_limit and model == PRIMARY_MODEL:
+                logger.warning("Primary model %s rate-limited, falling back to %s", PRIMARY_MODEL, FALLBACK_MODEL)
+                continue
+            logger.exception("Groq API Error with model %s", model)
+            return {
+                "error": "Failed to generate insights. Please check if your Groq API key is valid.",
+            }
+
 def run_pipeline(location_name: str, source: str = "wikipedia", path: str = None):
     if source == "onefivenine" and path:
         data = fetch_onefivenine_data(path)

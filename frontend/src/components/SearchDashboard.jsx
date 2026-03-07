@@ -106,7 +106,7 @@ const SearchDashboard = ({ onSearch, loading }) => {
                         <input
                             type="text"
                             className="glass-input"
-                            placeholder="Sankarankovil, Tamil Nadu"
+                            placeholder="Enter a city, town, or village name..."
                             value={query}
                             onChange={(e) => setQuery(e.target.value)}
                             onFocus={() => {
@@ -114,10 +114,8 @@ const SearchDashboard = ({ onSearch, loading }) => {
                                 if (suggestions.length > 0 || isFetching) setShowDropdown(true);
                             }}
                             onBlur={() => {
-                                setTimeout(() => {
-                                    setIsFocused(false);
-                                    setShowDropdown(false);
-                                }, 250);
+                                setIsFocused(false);
+                                setShowDropdown(false);
                             }}
                             style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(255, 255, 255, 0.8)' }}
                         />
@@ -151,7 +149,8 @@ const SearchDashboard = ({ onSearch, loading }) => {
                                     ) : (
                                         suggestions.map((item, idx) => (
                                             <div
-                                                key={idx}
+                                                key={`${item.title}-${item.source}`}
+                                                onMouseDown={(e) => e.preventDefault()}
                                                 onClick={() => handleSelectSuggestion(item)}
                                                 style={{
                                                     padding: '1rem',
@@ -194,21 +193,7 @@ const SearchDashboard = ({ onSearch, loading }) => {
                     </button>
                 </form>
             </div>
-            <style>{`
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .dashboard-title {
-            font-size: 3.75rem;
-        }
-        @media (max-width: 768px) {
-            #search-dashboard {
-                width: 90% !important;
-                margin-top: 10vh !important;
-            }
-            .dashboard-title {
-                font-size: 2.25rem !important;
-            }
-        }
-      `}</style>
+
         </motion.div>
     );
 };

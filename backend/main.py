@@ -1,83 +1,104 @@
 import os
 import json
+import time
+import logging
+import concurrent.futures
+from functools import lru_cache
+
 from fastapi import FastAPI, HTTPException, Request
-from database import redis_client
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 import uvicorn
+from cachetools import TTLCache
+
+from database import redis_client
 from pipeline import run_pipeline, search_wikipedia_candidates, search_onefivenine_candidates
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="GCIES API")
 
+# Module-level bounded thread pool for search parallelisation
+_search_executor = concurrent.futures.ThreadPoolExecutor(max_workers=4)
+
+# TTL cache for autocomplete results (5-minute expiry, max 256 entries)
+_search_cache = TTLCache(maxsize=256, ttl=300)
+
+_allowed_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # For development, allow all
+    allow_origins=_allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-from functools import lru_cache
-
 @app.get("/api/search")
-@lru_cache(maxsize=128)
 def search_locations(q: str):
     if not q:
         return []
+
+    # Check TTL cache first
+    if q in _search_cache:
+        return _search_cache[q]
+
     try:
-        import concurrent.futures
-        
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            wiki_future = executor.submit(search_wikipedia_candidates, q)
-            ofn_future = executor.submit(search_onefivenine_candidates, q)
-            
-            wiki_results = wiki_future.result()
-            onefivenine_results = ofn_future.result()
-            
-        # Combine the results
+        wiki_future = _search_executor.submit(search_wikipedia_candidates, q)
+        ofn_future = _search_executor.submit(search_onefivenine_candidates, q)
+
+        wiki_results = wiki_future.result()
+        onefivenine_results = ofn_future.result()
+
         combined = wiki_results + onefivenine_results
+        _search_cache[q] = combined
         return combined
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+        logger.exception("Search failed for query: %s", q)
+        raise HTTPException(status_code=500, detail="Search failed. Please try again.")
 
 @app.get("/api/summarize")
-def summarize_location(location_name: str, source: str = "wikipedia", path: str = None):
+async def summarize_location(location_name: str, source: str = "wikipedia", path: str = None):
     if not location_name:
         raise HTTPException(status_code=400, detail="location_name is required")
-        
+
     cache_key = f"summary:{source}:{location_name}"
-    
+
     # 1. Check Upstash for the location_name
     if redis_client:
         try:
             cached_result = redis_client.get(cache_key)
             if cached_result:
-                print(f"Cache hit for {location_name}")
+                logger.info("Cache hit for %s", location_name)
                 if isinstance(cached_result, str):
                     return json.loads(cached_result)
                 return cached_result
         except Exception as e:
-            print(f"Redis cache read error: {e}")
-            
-    # 2. Run the extraction generation
+            logger.warning("Redis cache read error: %s", e)
+
+    # 2. Run the extraction pipeline and measure duration
+    start = time.perf_counter()
     try:
         result = run_pipeline(location_name, source, path)
-        
-        # 3. Save the result to Upstash with exactly a 12-hour expiration (TTL 43200 seconds)
+        duration_ms = round((time.perf_counter() - start) * 1000)
+
+        # 3. Save the result to Upstash with a 12-hour TTL
         if redis_client:
             try:
                 redis_client.set(cache_key, json.dumps(result), ex=43200)
-                print(f"Cached result for {location_name}")
+                logger.info("Cached result for %s", location_name)
             except Exception as e:
-                print(f"Redis cache write error: {e}")
-                
-        return result
+                logger.warning("Redis cache write error: %s", e)
+
+        return JSONResponse(
+            content=result,
+            headers={"X-Pipeline-Duration-Ms": str(duration_ms)}
+        )
     except ValueError as ve:
         raise HTTPException(status_code=404, detail=str(ve))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+        logger.exception("Pipeline failed for %s", location_name)
+        raise HTTPException(status_code=500, detail="Failed to generate insights. Please try again later.")
 
 @app.get("/api/health")
 def health_check():

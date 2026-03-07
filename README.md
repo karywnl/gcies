@@ -117,12 +117,3 @@ uvicorn backend.main:app --host 0.0.0.0 --port $PORT
 > **Note:** The `GROQ_API_KEY` environment variable must be set in the Render service's environment settings.
 
 ---
-
-## API Endpoints
-
-| Method | Endpoint | Description |
-|---|---|---|
-| `GET` | `/api/search?q={query}` | Returns real-time autocomplete suggestions from Wikipedia and OneFiveNine |
-| `GET` | `/api/summarize?location_name={name}&source={src}&path={path}` | Runs the full NLP pipeline and returns 6-7 insights + image |
-| `GET` | `/api/health` | Health check |
-| `GET` | `/{any}` | Serves the React SPA or its static assets |

@@ -59,8 +59,10 @@ def search_locations(q: str):
         logger.exception("Search failed for query: %s", q)
         raise HTTPException(status_code=500, detail="Search failed. Please try again.")
 
+from fastapi.concurrency import run_in_threadpool
+
 @app.get("/api/summarize")
-def summarize_location(location_name: str, source: str = "wikipedia", path: str = None):
+async def summarize_location(location_name: str, source: str = "wikipedia", path: str = None):
     if not location_name:
         raise HTTPException(status_code=400, detail="location_name is required")
 
@@ -70,7 +72,7 @@ def summarize_location(location_name: str, source: str = "wikipedia", path: str 
     # 1. Check Upstash for the location_name
     if redis_client:
         try:
-            cached_result = redis_client.get(cache_key)
+            cached_result = await redis_client.get(cache_key)
             if cached_result:
                 logger.info("Cache hit for %s", location_name)
                 if isinstance(cached_result, str):
@@ -85,13 +87,14 @@ def summarize_location(location_name: str, source: str = "wikipedia", path: str 
     # 2. Run the extraction pipeline and measure duration
     start = time.perf_counter()
     try:
-        result = run_pipeline(location_name, source, path)
+        # Run synchronous AI pipeline in a background thread to prevent blocking
+        result = await run_in_threadpool(run_pipeline, location_name, source, path)
         duration_ms = round((time.perf_counter() - start) * 1000)
 
         # 3. Save the result to Upstash with a 12-hour TTL
         if redis_client:
             try:
-                redis_client.set(cache_key, json.dumps(result), ex=43200)
+                await redis_client.set(cache_key, json.dumps(result), ex=43200)
                 logger.info("Cached result for %s", location_name)
             except Exception as e:
                 logger.warning("Redis cache write error: %s", e)

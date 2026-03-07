@@ -1,14 +1,14 @@
 import os
 import logging
 from dotenv import load_dotenv
-from upstash_redis import Redis
+from upstash_redis.asyncio import Redis
 
 # Load environment variables from .env file
 load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-# Initialize Upstash Redis REST client
+# Initialize Upstash Redis REST client (async)
 REDIS_URL = os.environ.get("UPSTASH_REDIS_REST_URL")
 REDIS_TOKEN = os.environ.get("UPSTASH_REDIS_REST_TOKEN")
 

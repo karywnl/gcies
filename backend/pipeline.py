@@ -124,7 +124,12 @@ def fetch_onefivenine_data(path: str) -> dict:
     url = f"https://www.onefivenine.com/india/villages/{path}"
     headers = {"User-Agent": "Mozilla/5.0"}
     
-    res = requests.get(url, headers=headers)
+    try:
+        res = requests.get(url, headers=headers, timeout=8)
+    except Exception as e:
+        logger.warning("Error fetching OneFiveNine data: %s", e)
+        raise ValueError(f"Could not load OneFiveNine page for path: {path}")
+
     if res.status_code != 200:
         raise ValueError(f"Could not load OneFiveNine page for path: {path}")
         

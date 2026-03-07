@@ -66,9 +66,11 @@ python -m spacy download en_core_web_sm
 ```
 
 **Environment Variables**
-Create a `.env` file in the `backend/` directory and add your Groq API Key:
+Create a `.env` file in the `backend/` directory and add your API keys:
 ```env
 GROQ_API_KEY=gsk_your_api_key_here
+UPSTASH_REDIS_REST_URL=your_upstash_redis_url_here
+UPSTASH_REDIS_REST_TOKEN=your_upstash_redis_token_here
 ```
 
 **Run the Backend Server**
@@ -114,6 +116,6 @@ This script:
 uvicorn backend.main:app --host 0.0.0.0 --port $PORT
 ```
 
-> **Note:** The `GROQ_API_KEY` environment variable must be set in the Render service's environment settings.
+> **Note:** The `GROQ_API_KEY`, `UPSTASH_REDIS_REST_URL`, and `UPSTASH_REDIS_REST_TOKEN` environment variables must be set in the Render service's environment settings.
 
 ---

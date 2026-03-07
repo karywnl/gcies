@@ -39,9 +39,11 @@ def search_locations(q: str):
     if not q:
         return []
 
+    normalized_q = q.strip().lower()
+
     # Check TTL cache first
-    if q in _search_cache:
-        return _search_cache[q]
+    if normalized_q in _search_cache:
+        return _search_cache[normalized_q]
 
     try:
         wiki_future = _search_executor.submit(search_wikipedia_candidates, q)
@@ -51,18 +53,19 @@ def search_locations(q: str):
         onefivenine_results = ofn_future.result()
 
         combined = wiki_results + onefivenine_results
-        _search_cache[q] = combined
+        _search_cache[normalized_q] = combined
         return combined
     except Exception as e:
         logger.exception("Search failed for query: %s", q)
         raise HTTPException(status_code=500, detail="Search failed. Please try again.")
 
 @app.get("/api/summarize")
-async def summarize_location(location_name: str, source: str = "wikipedia", path: str = None):
+def summarize_location(location_name: str, source: str = "wikipedia", path: str = None):
     if not location_name:
         raise HTTPException(status_code=400, detail="location_name is required")
 
-    cache_key = f"summary:{source}:{location_name}"
+    normalized_key = location_name.strip().lower()
+    cache_key = f"summary:{source}:{normalized_key}"
 
     # 1. Check Upstash for the location_name
     if redis_client:
@@ -71,8 +74,11 @@ async def summarize_location(location_name: str, source: str = "wikipedia", path
             if cached_result:
                 logger.info("Cache hit for %s", location_name)
                 if isinstance(cached_result, str):
-                    return json.loads(cached_result)
-                return cached_result
+                    cached_result = json.loads(cached_result)
+                return JSONResponse(
+                    content=cached_result,
+                    headers={"X-Pipeline-Duration-Ms": "0", "X-Cache": "HIT"}
+                )
         except Exception as e:
             logger.warning("Redis cache read error: %s", e)
 
@@ -92,7 +98,7 @@ async def summarize_location(location_name: str, source: str = "wikipedia", path
 
         return JSONResponse(
             content=result,
-            headers={"X-Pipeline-Duration-Ms": str(duration_ms)}
+            headers={"X-Pipeline-Duration-Ms": str(duration_ms), "X-Cache": "MISS"}
         )
     except ValueError as ve:
         raise HTTPException(status_code=404, detail=str(ve))

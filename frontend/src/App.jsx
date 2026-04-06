@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Home from './pages/Home';
 import Architecture from './pages/Architecture';
+import LocationPage from './pages/LocationPage';
 import './App.css';
 
 function App() {
@@ -15,6 +16,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/about" element={<Architecture />} />
+          <Route path="/location/:encodedName" element={<LocationPage />} />
         </Routes>
       </main>
     </Router>

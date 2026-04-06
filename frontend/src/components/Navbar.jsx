@@ -1,13 +1,21 @@
 import { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Compass, Menu, X, Github } from 'lucide-react';
+import { Compass, Menu, X, Github, Sun, Moon } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const Navbar = () => {
     const [scrolled, setScrolled] = useState(false);
     const [isApiLive, setIsApiLive] = useState(null); // null = checking, true = live, false = offline
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const [theme, setTheme] = useState(() => localStorage.getItem('gcies_theme') || 'light');
     const navigate = useNavigate();
+
+    const toggleTheme = () => {
+        const next = theme === 'light' ? 'dark' : 'light';
+        setTheme(next);
+        localStorage.setItem('gcies_theme', next);
+        document.documentElement.setAttribute('data-theme', next);
+    };
 
     useEffect(() => {
         const handleScroll = () => {
@@ -59,7 +67,7 @@ const Navbar = () => {
                     maxWidth: '800px',
                     padding: '0.75rem 1.5rem',
                     transition: 'all 0.3s ease',
-                    background: scrolled ? 'rgba(255, 255, 255, 0.75)' : 'rgba(255, 255, 255, 0.4)',
+                    background: scrolled ? 'var(--nav-bg-scrolled)' : 'var(--nav-bg)',
                     backdropFilter: 'blur(10px)',
                     WebkitBackdropFilter: 'blur(10px)',
                     border: '1px solid rgba(255, 255, 255, 0.6)',
@@ -107,6 +115,15 @@ const Navbar = () => {
 
                     {/* Right: GitHub, API Status & Hamburger */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                        <button
+                            onClick={toggleTheme}
+                            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+                            style={{ background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', color: 'var(--text-muted)', transition: 'color 0.3s ease', padding: '0.25rem' }}
+                            onMouseEnter={(e) => e.currentTarget.style.color = 'var(--primary)'}
+                            onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
+                        >
+                            {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+                        </button>
                         <a
                             href="https://github.com/karywnl/gcies"
                             target="_blank"

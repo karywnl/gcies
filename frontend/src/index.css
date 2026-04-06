@@ -2,15 +2,71 @@
 
 :root {
   --primary: #3b82f6;
-  /* moderate blue */
   --primary-light: #60a5fa;
   --bg-color: #ffffff;
   --text-dark: #1e293b;
+  --text-main: #1e293b;
   --text-muted: #64748b;
 
   --glass-bg: rgba(255, 255, 255, 0.35);
   --glass-border: rgba(255, 255, 255, 0.5);
   --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
+
+  --nav-bg: rgba(255, 255, 255, 0.4);
+  --nav-bg-scrolled: rgba(255, 255, 255, 0.75);
+  --input-bg: rgba(255, 255, 255, 0.8);
+  --input-focus-bg: rgba(255, 255, 255, 0.95);
+  --dropdown-bg: rgba(255, 255, 255, 0.9);
+  --dropdown-hover: rgba(0, 0, 0, 0.05);
+  --gradient-text-start: #0f172a;
+  --gradient-text-end: #3b82f6;
+}
+
+/* Dark theme overrides */
+html[data-theme="dark"] {
+  --bg-color: #0f172a;
+  --text-dark: #e2e8f0;
+  --text-main: #e2e8f0;
+  --text-muted: #94a3b8;
+  --primary: #60a5fa;
+  --primary-light: #93c5fd;
+
+  --glass-bg: rgba(15, 23, 42, 0.55);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.35);
+
+  --nav-bg: rgba(15, 23, 42, 0.5);
+  --nav-bg-scrolled: rgba(15, 23, 42, 0.85);
+  --input-bg: rgba(30, 41, 59, 0.8);
+  --input-focus-bg: rgba(30, 41, 59, 0.97);
+  --dropdown-bg: rgba(15, 23, 42, 0.97);
+  --dropdown-hover: rgba(255, 255, 255, 0.05);
+  --gradient-text-start: #e2e8f0;
+  --gradient-text-end: #60a5fa;
+}
+
+html[data-theme="dark"] body {
+  background-color: var(--bg-color);
+}
+
+html[data-theme="dark"] .grid-bg {
+  background-image:
+    linear-gradient(to right, rgba(96, 165, 250, 0.07) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(96, 165, 250, 0.07) 1px, transparent 1px);
+}
+
+html[data-theme="dark"] .glass-input {
+  background: var(--input-bg);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: var(--text-dark);
+}
+
+html[data-theme="dark"] .glass-input:focus {
+  background: var(--input-focus-bg);
+}
+
+html[data-theme="dark"] .glass-input::placeholder {
+  color: var(--text-muted);
 }
 
 * {
@@ -122,7 +178,7 @@ body {
 }
 
 .gradient-text {
-  background: linear-gradient(135deg, #0f172a 0%, #3b82f6 100%);
+  background: linear-gradient(135deg, var(--gradient-text-start) 0%, var(--gradient-text-end) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -309,5 +365,32 @@ body {
 
   .dashboard-title {
     font-size: 2.25rem !important;
+  }
+}
+
+/* Results dashboard: collapse hero grid on mobile */
+@media (max-width: 720px) {
+  .hero-grid {
+    grid-template-columns: 1fr !important;
+    height: auto !important;
+  }
+
+  .hero-grid > *:first-child {
+    height: clamp(220px, 55vw, 360px) !important;
+  }
+}
+
+/* Ensure insight cards don't overflow on narrow screens */
+@media (max-width: 640px) {
+  .glass-panel {
+    min-width: 0;
+  }
+}
+
+/* App main padding: reduce top offset on mobile since content compresses */
+@media (max-width: 480px) {
+  main {
+    padding-left: 0.75rem !important;
+    padding-right: 0.75rem !important;
   }
 }

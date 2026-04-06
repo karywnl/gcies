@@ -1,18 +1,19 @@
 import { useState, useEffect, useRef } from 'react';
-import { useLocation } from 'react-router-dom';
-import axios from 'axios';
+import { useLocation, useNavigate } from 'react-router-dom';
 import HeroSection from '../components/HeroSection';
 import SearchDashboard from '../components/SearchDashboard';
 import ResultsDashboard from '../components/ResultsDashboard';
 import ProgressiveLoader from '../components/ProgressiveLoader';
 
-const Home = () => {
+const Home = ({ initialQuery = null }) => {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
-    const [showSearch, setShowSearch] = useState(false);
+    const [showSearch, setShowSearch] = useState(!!initialQuery);
     const location = useLocation();
+    const navigate = useNavigate();
     const resultsRef = useRef(null);
+    const eventSourceRef = useRef(null);
 
     // Reset view when navigating to home again
     useEffect(() => {
@@ -20,47 +21,109 @@ const Home = () => {
             setShowSearch(false);
             setData(null);
             setError(null);
-            // Optionally scroll to top when resetting
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
     }, [location.key]);
 
-    // Scroll to results when data is populated
+    // Scroll to results when data first appears
     useEffect(() => {
         if (data && resultsRef.current) {
-            // Add a small delay to ensure rendering is complete before scrolling
             setTimeout(() => {
                 const element = resultsRef.current;
-                const top = element.getBoundingClientRect().top + window.scrollY - 100; // Offset for navbar
+                const top = element.getBoundingClientRect().top + window.scrollY - 100;
                 window.scrollTo({ top, behavior: 'smooth' });
             }, 100);
         }
     }, [data]);
 
-    const handleSearch = async (searchObj) => {
+    // Auto-search from initialQuery (for LocationPage)
+    useEffect(() => {
+        if (initialQuery) {
+            handleSearch({ title: initialQuery, source: 'wikipedia', path: null });
+        }
+    }, []);
+
+    const handleSearch = (searchObj) => {
         const query = searchObj.title;
         if (!query || !query.trim()) return;
+
+        // Close any existing stream
+        if (eventSourceRef.current) {
+            eventSourceRef.current.close();
+            eventSourceRef.current = null;
+        }
+
         setLoading(true);
         setError(null);
         setData(null);
 
-        try {
-            let url = `/api/summarize?location_name=${encodeURIComponent(query)}`;
-            if (searchObj.source) url += `&source=${encodeURIComponent(searchObj.source)}`;
-            if (searchObj.path) url += `&path=${encodeURIComponent(searchObj.path)}`;
+        let url = `/api/stream?location_name=${encodeURIComponent(query)}`;
+        if (searchObj.source && searchObj.source !== 'wikipedia') url += `&source=${encodeURIComponent(searchObj.source)}`;
+        if (searchObj.path) url += `&path=${encodeURIComponent(searchObj.path)}`;
 
-            const response = await axios.get(url);
-            setData(response.data);
-        } catch (err) {
-            if (err.response && err.response.status === 404) {
-                setError(`Data is not available for "${query}". It may not have enough presence on the web. Please try another location.`);
-            } else {
+        const es = new EventSource(url);
+        eventSourceRef.current = es;
+
+        let meta = null;
+        let insights = {};
+
+        es.onmessage = (e) => {
+            const raw = e.data;
+
+            if (raw === '[DONE]') {
+                es.close();
+                eventSourceRef.current = null;
+                setLoading(false);
+                return;
+            }
+
+            try {
+                const event = JSON.parse(raw);
+
+                if (event.type === 'meta') {
+                    meta = event;
+                    // Show the dashboard immediately with image/facts, empty insights
+                    setData({
+                        location_name: event.location_name,
+                        image_url: event.image_url,
+                        image_urls: event.image_urls || [],
+                        source: event.source,
+                        source_url: event.source_url || '',
+                        quick_facts: event.quick_facts || {},
+                        insights: {},
+                    });
+                    setLoading(false);
+                    // Update URL to shareable form without triggering a React Router route change
+                    // (navigate() would remount LocationPage → double-load; replaceState avoids that)
+                    window.history.replaceState(null, '', `/location/${encodeURIComponent(event.location_name)}`);
+
+                } else if (event.type === 'insight') {
+                    insights = { ...insights, [event.key]: event.value };
+                    setData(prev => prev ? { ...prev, insights: { ...prev.insights, [event.key]: event.value } } : null);
+
+                } else if (event.type === 'error') {
+                    es.close();
+                    eventSourceRef.current = null;
+                    setLoading(false);
+                    const msg = event.message || '';
+                    if (msg.toLowerCase().includes('could not identify') || msg.toLowerCase().includes('could not find')) {
+                        setError(`Data is not available for "${query}". It may not have enough presence on the web. Please try another location.`);
+                    } else {
+                        setError('Failed to fetch data. Please try another location or check if the backend is running.');
+                    }
+                    setData(null);
+                }
+            } catch (_) {}
+        };
+
+        es.onerror = () => {
+            es.close();
+            eventSourceRef.current = null;
+            setLoading(false);
+            if (!data) {
                 setError('Failed to fetch data. Please try another location or check if the backend is running.');
             }
-            console.error(err);
-        } finally {
-            setLoading(false);
-        }
+        };
     };
 
     return (

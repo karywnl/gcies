@@ -65,12 +65,26 @@ def search_wikipedia_candidates(query: str) -> list:
         # Sort by search relevance index so the best match appears first
         ordered = sorted(pages.values(), key=lambda p: p.get("index", 999))
 
+        skip_types = [
+            "constituency", "electoral", "assembly segment", "lok sabha",
+            "rajya sabha", "legislative", "parliament", "ward", "taluk",
+            "mandal", "tehsil", "census", "pincode", "zip code",
+        ]
+
         results = []
         for page_data in ordered:
             desc = page_data.get("pageprops", {}).get("wikibase-shortdesc", "")
-            if any(kw in desc.lower() for kw in geo_keywords):
+            title = page_data.get("title", "")
+            desc_lower = desc.lower()
+            title_lower = title.lower()
+
+            # Skip political/administrative subdivisions that aren't places
+            if any(kw in desc_lower or kw in title_lower for kw in skip_types):
+                continue
+
+            if any(kw in desc_lower for kw in geo_keywords):
                 results.append({
-                    "title": page_data["title"],
+                    "title": title,
                     "description": desc,
                     "source": "wikipedia",
                 })
@@ -85,8 +99,6 @@ def search_wikipedia_candidates(query: str) -> list:
 
 def search_onefivenine_candidates(query: str) -> list:
     """Uses OneFiveNine autoComplete endpoint to find matching villages."""
-    import re
-
     url = "https://www.onefivenine.com/autoComplete.dont?method=completeVillages"
     headers = {"User-Agent": "Mozilla/5.0"}
     try:
@@ -223,6 +235,15 @@ def get_best_wikipedia_title(query: str) -> tuple:
 
             score = 0
 
+            # Reward titles that closely match the query — prevents nearby places
+            # like "Ariyanayagipuram (Sankarankovil)" from beating "Sankarankovil"
+            candidate_lower = candidate.lower()
+            query_lower = primary_query.lower()
+            if candidate_lower == query_lower:
+                score += 150
+            elif candidate_lower.startswith(query_lower):
+                score += 80
+
             primary_keywords = ["town", "city", "village", "municipality", "settlement", "capital"]
             if any(kw in desc for kw in primary_keywords):
                 score += 50
@@ -231,8 +252,12 @@ def get_best_wikipedia_title(query: str) -> tuple:
             if any(kw in desc for kw in secondary_keywords):
                 score += 20
 
-            if "constituency" in desc or "constituency" in candidate.lower() or "electoral" in desc:
-                score -= 30
+            skip_type_terms = [
+                "constituency", "electoral", "assembly segment", "lok sabha",
+                "rajya sabha", "legislative", "parliament", "ward",
+            ]
+            if any(t in desc or t in candidate.lower() for t in skip_type_terms):
+                score -= 200
 
             if has_coords:
                 score += 10
@@ -376,9 +401,17 @@ def fetch_wikidata_facts(wikipedia_title: str, qid: str = None) -> dict:
 
     return facts
 
-def fetch_wikipedia_data(location_name: str) -> dict:
-    """Fetches raw text, images, and Wikidata facts from Wikipedia/Wikidata in parallel."""
-    best_title, qid = get_best_wikipedia_title(location_name)
+def fetch_wikipedia_data(location_name: str, exact_title: str = None) -> dict:
+    """Fetches raw text, images, and Wikidata facts from Wikipedia/Wikidata in parallel.
+
+    If exact_title is supplied (e.g. from a disambiguation selection) title resolution
+    is skipped entirely, preventing the backend from picking a different article.
+    """
+    if exact_title:
+        best_title = exact_title
+        qid = None  # will be resolved inside fetch_wikidata_facts
+    else:
+        best_title, qid = get_best_wikipedia_title(location_name)
 
     if not best_title:
         raise ValueError(f"Could not identify a geographical location for: '{location_name}'. Please try being more specific.")
@@ -405,8 +438,26 @@ def fetch_wikipedia_data(location_name: str) -> dict:
         url = "https://en.wikipedia.org/w/api.php"
         skip_keywords = [
             "logo", "icon", "flag", "coat", "seal", "crest", "stamp", "signature",
-            "map", "locator", "relief", "blank",
+            "map", "locator", "relief", "blank", "arrow", "symbol", "diagram",
+            "pictogram", "button", "chart", "graph", "scheme", "outline", "silhouette",
+            "emblem", "badge", "placeholder", "default", "no_image", "noimage",
         ]
+
+        def _is_bad_image(fname: str, width: int = 0, height: int = 0) -> bool:
+            """Returns True if the image should be rejected."""
+            fname_lower = fname.lower()
+            # Reject SVGs — almost always icons/diagrams, not photos
+            if fname_lower.endswith(".svg"):
+                return True
+            if any(kw in fname_lower for kw in skip_keywords):
+                return True
+            # Reject portrait orientation
+            if width > 0 and height > 0 and height > width:
+                return True
+            # Reject tiny images
+            if width > 0 and height > 0 and (width < 400 or height < 250):
+                return True
+            return False
 
         # Words from the title used to score filename relevance (e.g. "bhavani", "erode")
         location_words = [
@@ -430,18 +481,23 @@ def fetch_wikipedia_data(location_name: str) -> dict:
             }, headers=headers, timeout=8).json()
 
             for page_data in res_a.get("query", {}).get("pages", {}).values():
-                # Wikipedia's curated representative image
+                # Wikipedia's curated representative image — filter it too
                 if "thumbnail" in page_data:
-                    primary_url = page_data["thumbnail"]["source"]
-                    primary_fname = "File:" + page_data.get("pageimage", "")
+                    pi_fname = "File:" + page_data.get("pageimage", "")
+                    thumb = page_data["thumbnail"]
+                    if not _is_bad_image(pi_fname, thumb.get("width", 0), thumb.get("height", 0)):
+                        primary_url = thumb["source"]
+                        primary_fname = pi_fname
+                    else:
+                        # Still track the fname so we skip it in candidates below
+                        primary_fname = pi_fname
 
                 # Collect other candidates, preserving page order
                 for img in page_data.get("images", []):
                     fname = img.get("title", "")
-                    fname_lower = fname.lower()
                     if fname == primary_fname:
                         continue
-                    if any(kw in fname_lower for kw in skip_keywords):
+                    if _is_bad_image(fname):
                         continue
                     candidate_fnames.append(fname)
 
@@ -478,10 +534,7 @@ def fetch_wikipedia_data(location_name: str) -> dict:
                 h = info.get("height", 0)
                 thumb = info.get("thumburl") or info.get("url")
 
-                if not thumb or w < 400 or h < 250:
-                    continue
-                # Reject portrait orientation — a strong signal for person photos
-                if h > w:
+                if not thumb or _is_bad_image(fname, w, h):
                     continue
 
                 # Score by location name match in filename

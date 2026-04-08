@@ -15,10 +15,7 @@ const ProgressiveLoader = () => {
     useEffect(() => {
         // Cycle to the next message every 2.5 seconds
         const interval = setInterval(() => {
-            setStepIndex((prev) => {
-                if (prev === LOADING_STEPS.length - 1) return prev;
-                return prev + 1;
-            });
+            setStepIndex((prev) => (prev + 1) % LOADING_STEPS.length);
         }, 2500);
 
         return () => clearInterval(interval);

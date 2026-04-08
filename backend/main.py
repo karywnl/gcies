@@ -7,6 +7,7 @@ import concurrent.futures
 from functools import lru_cache
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -75,8 +76,6 @@ def search_locations(q: str, source: str = "all"):
         logger.exception("Search failed for query: %s (source=%s)", q, source)
         raise HTTPException(status_code=500, detail="Search failed. Please try again.")
 
-from fastapi.concurrency import run_in_threadpool
-
 @app.get("/api/summarize")
 async def summarize_location(location_name: str, source: str = "wikipedia", path: str = None):
     if not location_name:
@@ -90,7 +89,7 @@ async def summarize_location(location_name: str, source: str = "wikipedia", path
         try:
             cached_result = await redis_client.get(cache_key)
             if cached_result:
-                print(f"✅ Cache HIT for {location_name}")
+                logger.info("Cache HIT for %s", location_name)
                 logger.info("Cache hit for %s", location_name)
                 if isinstance(cached_result, str):
                     cached_result = json.loads(cached_result)
@@ -99,12 +98,12 @@ async def summarize_location(location_name: str, source: str = "wikipedia", path
                     headers={"X-Pipeline-Duration-Ms": "0", "X-Cache": "HIT"}
                 )
             else:
-                print(f"❌ Cache MISS (empty) for {location_name}")
+                logger.debug("Cache MISS for %s", location_name)
         except Exception as e:
-            print(f"⚠️ Redis cache read error: {e}")
+            logger.warning("Redis cache read error: %s", e)
             logger.warning("Redis cache read error: %s", e)
     else:
-        print("⚠️ Skipping cache read: redis_client is None")
+        logger.debug("Skipping cache read: redis_client is None")
 
     # 2. Run the extraction pipeline and measure duration
     start = time.perf_counter()
@@ -117,13 +116,13 @@ async def summarize_location(location_name: str, source: str = "wikipedia", path
         if redis_client:
             try:
                 await redis_client.set(cache_key, json.dumps(result), ex=43200)
-                print(f"✅ Cached result written for {location_name}")
+                logger.info("Cached result written for %s", location_name)
                 logger.info("Cached result for %s", location_name)
             except Exception as e:
                 print(f"⚠️ Redis cache write error: {e}")
                 logger.warning("Redis cache write error: %s", e)
         else:
-            print("⚠️ Skipping cache write: redis_client is None")
+            logger.debug("Skipping cache write: redis_client is None")
 
         return JSONResponse(
             content=result,
@@ -137,7 +136,7 @@ async def summarize_location(location_name: str, source: str = "wikipedia", path
 
 
 @app.get("/api/stream")
-async def stream_location(location_name: str, source: str = "wikipedia", path: str = None):
+async def stream_location(location_name: str, source: str = "wikipedia", path: str = None, exact_title: str = None):
     """
     Server-Sent Events endpoint. Streams location insights progressively.
 
@@ -156,7 +155,7 @@ async def stream_location(location_name: str, source: str = "wikipedia", path: s
         try:
             cached = await redis_client.get(cache_key)
             if cached:
-                print(f"✅ Stream cache HIT for {location_name}")
+                logger.info("Stream cache HIT for %s", location_name)
                 if isinstance(cached, str):
                     cached = json.loads(cached)
 
@@ -196,7 +195,7 @@ async def stream_location(location_name: str, source: str = "wikipedia", path: s
             if source == "onefivenine" and path:
                 data = fetch_onefivenine_data(path)
             else:
-                data = fetch_wikipedia_data(location_name)
+                data = fetch_wikipedia_data(location_name, exact_title=exact_title)
 
             # Step 2: emit meta event IMMEDIATELY — image and map are ready now.
             # SpaCy NER (step 3) runs after this so the user sees content sooner.
@@ -265,9 +264,9 @@ async def stream_location(location_name: str, source: str = "wikipedia", path: s
                 if redis_client and "result" in collected:
                     try:
                         await redis_client.set(cache_key, json.dumps(collected["result"]), ex=43200)
-                        print(f"✅ Stream result cached for {location_name}")
+                        logger.info("Stream result cached for %s", location_name)
                     except Exception as e:
-                        print(f"⚠️ Stream cache write error: {e}")
+                        logger.warning("Stream cache write error: %s", e)
                         logger.warning("Stream cache write error: %s", e)
                 yield "data: [DONE]\n\n"
                 break
@@ -301,12 +300,12 @@ async def serve_spa(full_path: str):
     """
     Catch-all route to serve the SPA frontend and static files.
     """
-    # Prevent directory traversal
-    if ".." in full_path:
+    # Resolve the real path and confirm it stays inside the dist directory
+    file_path = os.path.realpath(os.path.join(FRONTEND_DIST_DIR, full_path))
+    if not file_path.startswith(os.path.realpath(FRONTEND_DIST_DIR)):
         raise HTTPException(status_code=400, detail="Invalid path")
 
     # Let static files (like /assets/*, /vite.svg, etc.) pass through if they exist
-    file_path = os.path.join(FRONTEND_DIST_DIR, full_path)
     if os.path.isfile(file_path):
         return FileResponse(file_path)
 

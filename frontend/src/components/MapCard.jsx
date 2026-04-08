@@ -11,6 +11,8 @@ L.Icon.Default.mergeOptions({
 });
 
 const MapCard = ({ lat, lon, locationName }) => {
+    if (!lat || !lon || !isFinite(lat) || !isFinite(lon)) return null;
+
     return (
         <MapContainer
             center={[lat, lon]}

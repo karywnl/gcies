@@ -117,7 +117,17 @@ body {
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--glass-border);
   box-shadow: var(--glass-shadow);
-  border-radius: 24px;
+  border-radius: 20px;
+}
+
+/* Compact variant for small cards (source, weather, related-place cards) */
+.compact-panel {
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  border-radius: 16px;
 }
 
 .glass-panel.no-padding {
@@ -177,6 +187,47 @@ body {
   transform: translateY(0);
 }
 
+/* Hero button row — equal-width buttons, stacks on mobile */
+.hero-btn-row {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.hero-btn {
+  min-width: 210px;
+  padding: 1.2rem 2rem !important;
+  font-size: 1.05rem !important;
+  justify-content: center;
+}
+
+@media (max-width: 480px) {
+  .hero-btn-row {
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+  }
+
+  .hero-btn {
+    width: 100%;
+    max-width: 320px;
+  }
+}
+
+/* Secondary gradient button (e.g. Surprise Me) */
+.glass-btn-secondary {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.85), rgba(236, 72, 153, 0.85));
+  border: 1px solid rgba(139, 92, 246, 0.4);
+  box-shadow: 0 10px 25px -5px rgba(139, 92, 246, 0.35);
+}
+
+.glass-btn-secondary:hover {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 1), rgba(236, 72, 153, 1));
+  box-shadow: 0 15px 30px -5px rgba(139, 92, 246, 0.5), 0 0 15px rgba(139, 92, 246, 0.4);
+  transform: translateY(-3px);
+}
+
 .gradient-text {
   background: linear-gradient(135deg, var(--gradient-text-start) 0%, var(--gradient-text-end) 100%);
   -webkit-background-clip: text;
@@ -228,8 +279,9 @@ body {
     font-size: 1rem !important;
   }
 
-  .glass-panel:not(.no-padding) {
-    padding: 1.5rem !important;
+  /* Only apply padding reset to insight/content panels, not compact cards */
+  .insight-card.glass-panel {
+    padding: 1.25rem !important;
   }
 }
 
@@ -266,9 +318,8 @@ body {
    Navbar Styles (extracted from Navbar.jsx)
    ============================================= */
 @keyframes pulse {
-  0% { opacity: 0.5; }
-  50% { opacity: 1; }
-  100% { opacity: 0.5; }
+  0%, 100% { opacity: 0.5; }
+  50%       { opacity: 1; }
 }
 
 .nav-link {
@@ -394,3 +445,76 @@ body {
     padding-right: 0.75rem !important;
   }
 }
+
+/* ── Print / PDF Report ────────────────────────────────── */
+@media print {
+  /* Force the browser to print background colours, gradients, and images */
+  * {
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+  }
+
+  /* Hide UI chrome and elements that don't render well on paper */
+  nav,
+  .no-print,
+  .grid-bg,
+  #search-dashboard,
+  .print-hide-map {
+    display: none !important;
+  }
+
+  body {
+    background: #f8fafc !important;
+  }
+
+  main {
+    padding: 0.5rem !important;
+  }
+
+  /* Glass panels: solid fill (backdrop-filter is unsupported in print) */
+  .glass-panel,
+  .compact-panel {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background: rgba(248, 250, 252, 0.97) !important;
+    break-inside: avoid;
+  }
+
+  /* Hero grid: single column so carousel fills full width cleanly */
+  .hero-grid {
+    grid-template-columns: 1fr !important;
+    height: auto !important;
+    gap: 0.75rem !important;
+  }
+
+  /* Carousel at a fixed readable height */
+  .hero-grid > *:first-child {
+    height: 300px !important;
+    border-radius: 16px !important;
+  }
+
+  /* Right panel (source card): become a normal full-width row */
+  .hero-grid > div:last-child {
+    height: auto !important;
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    align-items: flex-start !important;
+  }
+
+  /* Insights: 2 columns on paper */
+  .print-insights-grid {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  /* Keep insight cards from splitting across pages */
+  .insight-card {
+    break-inside: avoid;
+  }
+
+  @page {
+    margin: 1.2cm 1.5cm;
+    size: A4;
+  }
+}
+
+/* Pulse animation for loading skeletons — shared with navbar indicator */

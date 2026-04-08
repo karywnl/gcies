@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Search, Clock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -50,6 +50,12 @@ const SearchDashboard = ({ onQuery, onSearch, loading }) => {
         setShowDropdown(false);
         onSearch(item);           // go directly — no disambiguation needed
     };
+
+    // Auto-focus when the dashboard first appears
+    useEffect(() => {
+        const t = setTimeout(() => inputRef.current?.focus(), 120);
+        return () => clearTimeout(t);
+    }, []);
 
     const showHistory = showDropdown && history.length > 0 && query.trim().length === 0;
 

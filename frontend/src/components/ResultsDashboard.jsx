@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Landmark, MapPin, Users, Factory, Train, BarChart3, Globe, Compass, Palmtree, BookOpen, Utensils, Music, Sparkles, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Landmark, MapPin, Users, Factory, Train, BarChart3, Globe, Compass, Palmtree, BookOpen, Utensils, Music, Sparkles, ChevronLeft, ChevronRight, ExternalLink, Printer, Share2, Check } from 'lucide-react';
 import MapCard from './MapCard';
+import WeatherCard from './WeatherCard';
+import RelatedPlaces from './RelatedPlaces';
 
 const iconMap = {
     historical: { icon: Landmark, color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.1)' },
@@ -77,7 +80,7 @@ const ImageCarousel = ({ images, locationName }) => {
                     {locationName || 'Discoveries'}
                 </h2>
                 {count > 1 && (
-                    <div style={{ display: 'flex', gap: '6px', marginTop: '0.5rem' }}>
+                    <div className="no-print" style={{ display: 'flex', gap: '6px', marginTop: '0.5rem' }}>
                         {images.map((_, idx) => (
                             <button
                                 key={idx}
@@ -100,7 +103,7 @@ const ImageCarousel = ({ images, locationName }) => {
 
             {/* Prev / Next */}
             {count > 1 && (
-                <>
+                <div className="no-print">
                     {[{ dir: 'prev', Icon: ChevronLeft, side: { left: '10px' } }, { dir: 'next', Icon: ChevronRight, side: { right: '10px' } }].map(({ dir, Icon, side }) => (
                         <button
                             key={dir}
@@ -119,7 +122,7 @@ const ImageCarousel = ({ images, locationName }) => {
                             <Icon size={18} />
                         </button>
                     ))}
-                </>
+                </div>
             )}
         </div>
     );
@@ -142,7 +145,7 @@ const SourceCard = ({ source, source_url, location_name }) => {
             href={href}
             target="_blank"
             rel="noopener noreferrer"
-            className="glass-panel"
+            className="compact-panel"
             style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -151,7 +154,6 @@ const SourceCard = ({ source, source_url, location_name }) => {
                 textDecoration: 'none',
                 flexShrink: 0,
                 transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-                borderRadius: '16px',
             }}
             onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 12px 30px rgba(0,0,0,0.12)'; }}
             onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'var(--glass-shadow)'; }}
@@ -176,8 +178,16 @@ const SourceCard = ({ source, source_url, location_name }) => {
 };
 
 /* ── Main Dashboard ───────────────────────────────────── */
-const ResultsDashboard = ({ data }) => {
+const ResultsDashboard = ({ data, onSearch }) => {
     const { image_url, image_urls, insights, location_name, source, source_url, quick_facts } = data;
+    const [copied, setCopied] = useState(false);
+
+    const handleShare = () => {
+        navigator.clipboard.writeText(window.location.href).then(() => {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        });
+    };
 
     const images = (image_urls && image_urls.length > 0) ? image_urls : (image_url ? [image_url] : []);
     const hasImages = images.length > 0;
@@ -201,7 +211,7 @@ const ResultsDashboard = ({ data }) => {
                         {/* Right: map + source stacked */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', height: '100%', minHeight: 0 }}>
                             {hasMap && (
-                                <div style={{
+                                <div className="print-hide-map" style={{
                                     flex: 1,
                                     minHeight: 0,
                                     borderRadius: '20px',
@@ -248,6 +258,14 @@ const ResultsDashboard = ({ data }) => {
                     </div>
                 )}
 
+                {/* Weather strip — full width, shown when coordinates are available */}
+                {hasMap && (
+                    <WeatherCard
+                        lat={quick_facts.coordinates.lat}
+                        lon={quick_facts.coordinates.lon}
+                    />
+                )}
+
                 {/* Warning banner for village DB */}
                 {source === 'onefivenine' && (
                     <div style={{
@@ -270,17 +288,60 @@ const ResultsDashboard = ({ data }) => {
                     </div>
                 )}
 
+                {/* Action bar: share + print */}
+                <div className="no-print" style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.6rem' }}>
+                    {/* Share / Copy link */}
+                    <button
+                        onClick={handleShare}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: '0.5rem',
+                            padding: '0.6rem 1.2rem', borderRadius: '9999px',
+                            border: `1px solid ${copied ? 'var(--primary)' : 'var(--glass-border)'}`,
+                            background: copied ? 'rgba(59,130,246,0.08)' : 'var(--glass-bg)',
+                            backdropFilter: 'blur(10px)', cursor: 'pointer',
+                            fontSize: '0.85rem', fontWeight: 600,
+                            color: copied ? 'var(--primary)' : 'var(--text-muted)',
+                            transition: 'all 0.2s ease',
+                        }}
+                        onMouseEnter={e => { if (!copied) { e.currentTarget.style.color = 'var(--text-main)'; e.currentTarget.style.borderColor = 'var(--primary)'; } }}
+                        onMouseLeave={e => { if (!copied) { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'var(--glass-border)'; } }}
+                    >
+                        {copied ? <Check size={15} /> : <Share2 size={15} />}
+                        {copied ? 'Copied!' : 'Share'}
+                    </button>
+
+                    {/* Print */}
+                    <button
+                        onClick={() => window.print()}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: '0.5rem',
+                            padding: '0.6rem 1.2rem', borderRadius: '9999px',
+                            border: '1px solid var(--glass-border)',
+                            background: 'var(--glass-bg)', backdropFilter: 'blur(10px)',
+                            cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600,
+                            color: 'var(--text-muted)', transition: 'all 0.2s ease',
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-main)'; e.currentTarget.style.borderColor = 'var(--primary)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'var(--glass-border)'; }}
+                    >
+                        <Printer size={15} />
+                        Print Report
+                    </button>
+                </div>
+
                 {/* Insights Grid */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(300px, 100%), 1fr))', gap: '1.25rem' }}>
+                <div className="print-insights-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(300px, 100%), 1fr))', gap: '1.25rem' }}>
                     {Object.entries(insights || {}).map(([key, value], index) => {
                         const { icon: IconComponent, color, bg } = getIconForKey(key);
                         return (
-                            <div
-                                key={index}
-                                className="glass-panel"
-                                style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', transition: 'transform 0.3s ease' }}
-                                onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-4px)'}
-                                onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+                            <motion.div
+                                key={key}
+                                className="glass-panel insight-card"
+                                initial={{ opacity: 0, y: 18 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.45, delay: index * 0.07, ease: 'easeOut' }}
+                                style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}
+                                whileHover={{ y: -4, transition: { duration: 0.2 } }}
                             >
                                 <div style={{ background: bg, padding: '0.7rem', borderRadius: '12px', width: 'fit-content' }}>
                                     <IconComponent size={22} color={color} />
@@ -291,10 +352,19 @@ const ResultsDashboard = ({ data }) => {
                                 <p style={{ color: 'var(--text-dark)', lineHeight: 1.65, fontSize: '1rem' }}>
                                     {value}
                                 </p>
-                            </div>
+                            </motion.div>
                         );
                     })}
                 </div>
+
+                {/* Related Places */}
+                {onSearch && (
+                    <div className="no-print"><RelatedPlaces
+                        locationName={location_name}
+                        exactTitle={location_name}
+                        onSearch={onSearch}
+                    /></div>
+                )}
 
             </div>
         </div>

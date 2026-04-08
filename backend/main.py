@@ -23,6 +23,7 @@ from pipeline import (
     fetch_onefivenine_data,
     filter_geocultural_entities,
     summarize_with_groq_stream,
+    get_related_places,
 )
 
 logger = logging.getLogger(__name__)
@@ -281,6 +282,30 @@ async def stream_location(location_name: str, source: str = "wikipedia", path: s
             "Connection": "keep-alive",
         },
     )
+
+
+_related_cache = TTLCache(maxsize=256, ttl=600)
+
+@app.get("/api/related-places")
+def related_places(location_name: str, exact_title: str = None):
+    """
+    Returns up to 5 related geographic places (those with coordinates)
+    extracted from the Wikipedia article's internal links.
+    """
+    if not location_name:
+        return []
+
+    cache_key = f"related:{(exact_title or location_name).strip().lower()}"
+    if cache_key in _related_cache:
+        return _related_cache[cache_key]
+
+    try:
+        results = get_related_places(location_name, exact_title=exact_title)
+        _related_cache[cache_key] = results
+        return results
+    except Exception as e:
+        logger.exception("Related places failed for %s", location_name)
+        return []
 
 
 @app.get("/api/health")

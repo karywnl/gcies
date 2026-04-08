@@ -180,7 +180,10 @@ const Home = ({ initialQuery = null }) => {
 
             {/* Hero or Search bar */}
             {!showSearch && !data ? (
-                <HeroSection onStartExploring={() => setShowSearch(true)} />
+                <HeroSection
+                    onStartExploring={() => setShowSearch(true)}
+                    onSurpriseMe={(place) => handleSearch({ title: place, source: 'wikipedia', path: null })}
+                />
             ) : (
                 <SearchDashboard
                     onQuery={handleQuery}
@@ -221,7 +224,7 @@ const Home = ({ initialQuery = null }) => {
             {/* Results */}
             {data && !inDisambiguation && (
                 <div ref={resultsRef} style={{ width: '100%' }}>
-                    <ResultsDashboard data={data} />
+                    <ResultsDashboard data={data} onSearch={handleSearch} />
                 </div>
             )}
         </div>

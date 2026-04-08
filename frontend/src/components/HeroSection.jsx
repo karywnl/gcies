@@ -1,7 +1,15 @@
 import { motion } from 'framer-motion';
-import { ArrowDown } from 'lucide-react';
+import { ArrowDown, Shuffle } from 'lucide-react';
 
-const HeroSection = ({ onStartExploring }) => {
+const RANDOM_PLACES = [
+    'Machu Picchu', 'Kyoto', 'Marrakech', 'Santorini', 'Reykjavik',
+    'Petra', 'Varanasi', 'Havana', 'Timbuktu', 'Kathmandu',
+    'Dubrovnik', 'Zanzibar', 'Bagan', 'Lhasa', 'Fez',
+    'Chefchaouen', 'Cusco', 'Tbilisi', 'Samarkand', 'Luxor',
+    'Angkor Wat', 'Cappadocia', 'Delphi', 'Patagonia', 'Queenstown',
+];
+
+const HeroSection = ({ onStartExploring, onSurpriseMe }) => {
     const containerVariants = {
         hidden: { opacity: 0 },
         visible: {
@@ -28,8 +36,8 @@ const HeroSection = ({ onStartExploring }) => {
             animate="visible"
             style={{
                 textAlign: 'center',
-                marginTop: '12vh',
-                marginBottom: '12vh',
+                marginTop: 'clamp(3rem, 12vh, 7rem)',
+                marginBottom: 'clamp(2.5rem, 8vh, 6rem)',
                 width: '100%',
                 maxWidth: '900px',
                 display: 'flex',
@@ -67,20 +75,21 @@ const HeroSection = ({ onStartExploring }) => {
                 From forgotten villages to iconic cities, just type a name and let our AI uncover the culture, landmarks, and history that make it remarkable.
             </motion.p>
 
-            <motion.div variants={itemVariants}>
+            <motion.div variants={itemVariants} className="hero-btn-row">
                 <button
                     onClick={onStartExploring}
-                    className="glass-btn"
-                    style={{
-                        padding: '1.2rem 2.5rem',
-                        fontSize: '1.1rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.75rem',
-                        margin: '0 auto'
-                    }}
+                    className="glass-btn hero-btn"
                 >
                     Start Exploring <ArrowDown size={20} className="floating" style={{ animationDuration: '2s' }} />
+                </button>
+                <button
+                    onClick={() => {
+                        const place = RANDOM_PLACES[Math.floor(Math.random() * RANDOM_PLACES.length)];
+                        onSurpriseMe(place);
+                    }}
+                    className="glass-btn hero-btn"
+                >
+                    <Shuffle size={20} /> Surprise Me
                 </button>
             </motion.div>
         </motion.div>

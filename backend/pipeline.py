@@ -743,3 +743,82 @@ def run_pipeline(location_name: str, source: str = "wikipedia", path: str = None
         "source_url": source_url,
         "quick_facts": data.get("quick_facts", {}),
     }
+
+
+def get_related_places(location_name: str, exact_title: str = None) -> list:
+    """
+    Returns up to 5 related geographic places by fetching Wikipedia article links
+    and batch-checking which ones have coordinates (i.e. are real places).
+    """
+    title = exact_title or location_name
+
+    # Step 1: fetch all wikilinks from the article (namespace 0 = main articles only)
+    try:
+        links_resp = requests.get(
+            "https://en.wikipedia.org/w/api.php",
+            params={
+                "action": "query",
+                "prop": "links",
+                "titles": title,
+                "pllimit": "100",
+                "plnamespace": "0",
+                "format": "json",
+            },
+            headers={"User-Agent": USER_AGENT},
+            timeout=6,
+        )
+        pages = links_resp.json().get("query", {}).get("pages", {})
+    except Exception:
+        return []
+
+    all_links = []
+    for page in pages.values():
+        for link in page.get("links", []):
+            link_title = link.get("title", "")
+            # Skip disambiguation pages, lists, and the source article itself
+            if (link_title.lower() == title.lower()
+                    or "(disambiguation)" in link_title.lower()
+                    or link_title.lower().startswith("list of")):
+                continue
+            all_links.append(link_title)
+
+    if not all_links:
+        return []
+
+    # Step 2: batch-check the first 60 links for coordinates + thumbnail in one API call
+    batch = all_links[:60]
+    try:
+        coords_resp = requests.get(
+            "https://en.wikipedia.org/w/api.php",
+            params={
+                "action": "query",
+                "prop": "coordinates|pageimages|description",
+                "titles": "|".join(batch),
+                "piprop": "thumbnail",
+                "pithumbsize": "320",
+                "format": "json",
+            },
+            headers={"User-Agent": USER_AGENT},
+            timeout=8,
+        )
+        coord_pages = coords_resp.json().get("query", {}).get("pages", {})
+    except Exception:
+        return []
+
+    results = []
+    for page in coord_pages.values():
+        if "coordinates" not in page:
+            continue
+        place_title = page.get("title", "")
+        if place_title.lower() == title.lower():
+            continue
+        results.append({
+            "title": place_title,
+            "source": "wikipedia",
+            "description": page.get("description", ""),
+            "thumbnail": page.get("thumbnail", {}).get("source"),
+        })
+        if len(results) >= 5:
+            break
+
+    return results

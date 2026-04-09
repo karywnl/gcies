@@ -71,7 +71,8 @@ const Home = ({ initialQuery = null }) => {
             const res = await fetch(`/api/search?q=${encodeURIComponent(queryText.trim())}&source=all`);
             const results = await res.json();
             setCandidates(Array.isArray(results) ? results : []);
-        } catch (_) {
+        } catch (e) {
+            console.error('Search failed:', e);
             setCandidates([]);
         } finally {
             setCandidatesLoading(false);
@@ -139,7 +140,7 @@ const Home = ({ initialQuery = null }) => {
                     setLoading(false);
                     window.history.replaceState(
                         null, '',
-                        `/location/${encodeURIComponent(event.location_name)}`
+                        `/location/${encodeURIComponent(event.location_name.toLowerCase())}`
                     );
 
                 } else if (event.type === 'insight') {
@@ -160,7 +161,9 @@ const Home = ({ initialQuery = null }) => {
                     }
                     setData(null);
                 }
-            } catch (_) {}
+            } catch (e) {
+                    console.warn('Failed to parse SSE event:', e, 'Raw:', raw);
+                }
         };
 
         es.onerror = () => {

@@ -10,7 +10,9 @@ const saveToHistory = (searchObj) => {
         const entry = { title: searchObj.title, source: searchObj.source, path: searchObj.path || null, timestamp: Date.now() };
         const deduped = existing.filter(e => e.title !== searchObj.title);
         localStorage.setItem(HISTORY_KEY, JSON.stringify([entry, ...deduped].slice(0, 5)));
-    } catch (_) {}
+    } catch (e) {
+        console.warn('Failed to save search history:', e);
+    }
 };
 
 export const saveSearchToHistory = saveToHistory;

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Compass, Menu, X, Github, Sun, Moon } from 'lucide-react';
+import { Compass, Menu, X, Github, Sun, Moon, Map } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const Navbar = () => {
@@ -106,10 +106,12 @@ const Navbar = () => {
                             Home
                         </NavLink>
                         <NavLink
-                            to="/about"
+                            to="/explore"
                             className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
+                            style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
                         >
-                            Architecture
+                            <Map size={15} />
+                            Explore
                         </NavLink>
                     </div>
 
@@ -186,11 +188,13 @@ const Navbar = () => {
                                 Home
                             </NavLink>
                             <NavLink
-                                to="/about"
+                                to="/explore"
                                 className={({ isActive }) => isActive ? 'nav-link active mobile-link' : 'nav-link mobile-link'}
                                 onClick={closeMobileMenu}
+                                style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
                             >
-                                Architecture
+                                <Map size={15} />
+                                Explore
                             </NavLink>
                         </motion.div>
                     )}

@@ -34,7 +34,10 @@ except OSError:
     nlp = spacy.load("en_core_web_sm")
 
 # Initialize Groq client
-groq_client = Groq(api_key=os.getenv("GROQ_API_KEY", "mock_key").strip())
+_groq_api_key = os.getenv("GROQ_API_KEY", "").strip()
+if not _groq_api_key:
+    raise RuntimeError("GROQ_API_KEY environment variable is not set. Please create backend/.env from .env.example.")
+groq_client = Groq(api_key=_groq_api_key)
 
 def search_wikipedia_candidates(query: str) -> list:
     """
@@ -200,6 +203,18 @@ def get_best_wikipedia_title(query: str) -> tuple:
     caller can skip the redundant QID lookup inside fetch_wikidata_facts.
     """
     url = "https://en.wikipedia.org/w/api.php"
+
+    # ── Fast-path: comma-qualified queries (e.g. "Salem, Tamil Nadu") ──────
+    # The frontend sends lowercase ("salem, tamil nadu"). Wikipedia only
+    # auto-capitalises the very first character, so we must title-case each
+    # comma-separated part before probing the page directly.
+    if "," in query:
+        title_cased = ", ".join(p.strip().title() for p in query.split(","))
+        for candidate_title in dict.fromkeys([title_cased, query.strip()]):  # try title-cased first, then raw
+            direct_page = wiki_wiki.page(candidate_title)
+            if direct_page.exists():
+                logger.debug("Direct title match for '%s' -> '%s'", query, direct_page.title)
+                return direct_page.title, None
 
     parts = [p.strip() for p in query.split(",")]
     primary_query = parts[0]
@@ -745,80 +760,48 @@ def run_pipeline(location_name: str, source: str = "wikipedia", path: str = None
     }
 
 
-def get_related_places(location_name: str, exact_title: str = None) -> list:
+def get_location_hierarchy(lat: float, lon: float) -> list:
     """
-    Returns up to 5 related geographic places by fetching Wikipedia article links
-    and batch-checking which ones have coordinates (i.e. are real places).
+    Uses Nominatim reverse geocoding to return the administrative hierarchy
+    for given coordinates (village → city → district → state → country).
+    Free, no API key. Works for any point on Earth.
     """
-    title = exact_title or location_name
-
-    # Step 1: fetch all wikilinks from the article (namespace 0 = main articles only)
     try:
-        links_resp = requests.get(
-            "https://en.wikipedia.org/w/api.php",
-            params={
-                "action": "query",
-                "prop": "links",
-                "titles": title,
-                "pllimit": "100",
-                "plnamespace": "0",
-                "format": "json",
-            },
+        resp = requests.get(
+            "https://nominatim.openstreetmap.org/reverse",
+            params={"lat": lat, "lon": lon, "format": "json", "addressdetails": 1},
             headers={"User-Agent": USER_AGENT},
             timeout=6,
         )
-        pages = links_resp.json().get("query", {}).get("pages", {})
+        data = resp.json()
     except Exception:
         return []
 
-    all_links = []
-    for page in pages.values():
-        for link in page.get("links", []):
-            link_title = link.get("title", "")
-            # Skip disambiguation pages, lists, and the source article itself
-            if (link_title.lower() == title.lower()
-                    or "(disambiguation)" in link_title.lower()
-                    or link_title.lower().startswith("list of")):
-                continue
-            all_links.append(link_title)
-
-    if not all_links:
+    address = data.get("address", {})
+    if not address:
         return []
 
-    # Step 2: batch-check the first 60 links for coordinates + thumbnail in one API call
-    batch = all_links[:60]
-    try:
-        coords_resp = requests.get(
-            "https://en.wikipedia.org/w/api.php",
-            params={
-                "action": "query",
-                "prop": "coordinates|pageimages|description",
-                "titles": "|".join(batch),
-                "piprop": "thumbnail",
-                "pithumbsize": "320",
-                "format": "json",
-            },
-            headers={"User-Agent": USER_AGENT},
-            timeout=8,
-        )
-        coord_pages = coords_resp.json().get("query", {}).get("pages", {})
-    except Exception:
-        return []
+    # OSM address fields, ordered from most specific to least specific
+    fields = [
+        ("village",        "Village"),
+        ("hamlet",         "Hamlet"),
+        ("suburb",         "Area"),
+        ("city_district",  "City District"),
+        ("town",           "Town"),
+        ("city",           "City"),
+        ("municipality",   "Municipality"),
+        ("county",         "County"),
+        ("state_district", "District"),
+        ("state",          "State"),
+        ("country",        "Country"),
+    ]
 
-    results = []
-    for page in coord_pages.values():
-        if "coordinates" not in page:
-            continue
-        place_title = page.get("title", "")
-        if place_title.lower() == title.lower():
-            continue
-        results.append({
-            "title": place_title,
-            "source": "wikipedia",
-            "description": page.get("description", ""),
-            "thumbnail": page.get("thumbnail", {}).get("source"),
-        })
-        if len(results) >= 5:
-            break
+    hierarchy = []
+    seen = set()
+    for key, label in fields:
+        name = address.get(key)
+        if name and name not in seen:
+            seen.add(name)
+            hierarchy.append({"name": name, "type": label})
 
-    return results
+    return hierarchy

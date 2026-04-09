@@ -23,7 +23,7 @@ from pipeline import (
     fetch_onefivenine_data,
     filter_geocultural_entities,
     summarize_with_groq_stream,
-    get_related_places,
+    get_location_hierarchy,
 )
 
 logger = logging.getLogger(__name__)
@@ -36,7 +36,7 @@ _search_executor = concurrent.futures.ThreadPoolExecutor(max_workers=4)
 # TTL cache for autocomplete results (5-minute expiry, max 256 entries)
 _search_cache = TTLCache(maxsize=256, ttl=300)
 
-_allowed_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173").split(",")
+_allowed_origins = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", "http://localhost:5173").split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_allowed_origins,
@@ -54,6 +54,8 @@ def search_locations(q: str, source: str = "all"):
     """
     if not q:
         return []
+    if len(q.strip()) > 300:
+        raise HTTPException(status_code=400, detail="Query too long (max 300 characters)")
 
     cache_key = f"{source}:{q.strip().lower()}"
 
@@ -81,6 +83,8 @@ def search_locations(q: str, source: str = "all"):
 async def summarize_location(location_name: str, source: str = "wikipedia", path: str = None):
     if not location_name:
         raise HTTPException(status_code=400, detail="location_name is required")
+    if len(location_name.strip()) > 300:
+        raise HTTPException(status_code=400, detail="location_name too long (max 300 characters)")
 
     normalized_key = location_name.strip().lower()
     cache_key = f"summary:{source}:{normalized_key}"
@@ -91,7 +95,6 @@ async def summarize_location(location_name: str, source: str = "wikipedia", path
             cached_result = await redis_client.get(cache_key)
             if cached_result:
                 logger.info("Cache HIT for %s", location_name)
-                logger.info("Cache hit for %s", location_name)
                 if isinstance(cached_result, str):
                     cached_result = json.loads(cached_result)
                 return JSONResponse(
@@ -101,7 +104,6 @@ async def summarize_location(location_name: str, source: str = "wikipedia", path
             else:
                 logger.debug("Cache MISS for %s", location_name)
         except Exception as e:
-            logger.warning("Redis cache read error: %s", e)
             logger.warning("Redis cache read error: %s", e)
     else:
         logger.debug("Skipping cache read: redis_client is None")
@@ -118,9 +120,7 @@ async def summarize_location(location_name: str, source: str = "wikipedia", path
             try:
                 await redis_client.set(cache_key, json.dumps(result), ex=43200)
                 logger.info("Cached result written for %s", location_name)
-                logger.info("Cached result for %s", location_name)
             except Exception as e:
-                print(f"⚠️ Redis cache write error: {e}")
                 logger.warning("Redis cache write error: %s", e)
         else:
             logger.debug("Skipping cache write: redis_client is None")
@@ -148,6 +148,8 @@ async def stream_location(location_name: str, source: str = "wikipedia", path: s
     """
     if not location_name:
         raise HTTPException(status_code=400, detail="location_name is required")
+    if len(location_name.strip()) > 300:
+        raise HTTPException(status_code=400, detail="location_name too long (max 300 characters)")
 
     cache_key = f"summary:{source}:{location_name.strip().lower()}"
 
@@ -181,7 +183,6 @@ async def stream_location(location_name: str, source: str = "wikipedia", path: s
                     headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no", "Connection": "keep-alive", "X-Cache": "HIT"},
                 )
         except Exception as e:
-            print(f"⚠️ Stream cache read error: {e}")
             logger.warning("Stream cache read error: %s", e)
 
     # --- Cache MISS: run pipeline and stream live ---
@@ -268,7 +269,6 @@ async def stream_location(location_name: str, source: str = "wikipedia", path: s
                         logger.info("Stream result cached for %s", location_name)
                     except Exception as e:
                         logger.warning("Stream cache write error: %s", e)
-                        logger.warning("Stream cache write error: %s", e)
                 yield "data: [DONE]\n\n"
                 break
             yield f"data: {item}\n\n"
@@ -284,27 +284,27 @@ async def stream_location(location_name: str, source: str = "wikipedia", path: s
     )
 
 
-_related_cache = TTLCache(maxsize=256, ttl=600)
 
-@app.get("/api/related-places")
-def related_places(location_name: str, exact_title: str = None):
-    """
-    Returns up to 5 related geographic places (those with coordinates)
-    extracted from the Wikipedia article's internal links.
-    """
-    if not location_name:
-        return []
+_nearby_cache = TTLCache(maxsize=512, ttl=600)
 
-    cache_key = f"related:{(exact_title or location_name).strip().lower()}"
-    if cache_key in _related_cache:
-        return _related_cache[cache_key]
+@app.get("/api/reverse")
+def reverse_geocode(lat: float, lon: float):
+    """
+    Returns the administrative hierarchy (village → city → state → country)
+    for given coordinates using Nominatim reverse geocoding.
+    Used by the Explore map page. Works for any point on Earth.
+    """
+    # Round to 3 decimal places (~110 m precision) for good cache reuse
+    cache_key = f"reverse:{round(lat, 3)}:{round(lon, 3)}"
+    if cache_key in _nearby_cache:
+        return _nearby_cache[cache_key]
 
     try:
-        results = get_related_places(location_name, exact_title=exact_title)
-        _related_cache[cache_key] = results
+        results = get_location_hierarchy(lat, lon)
+        _nearby_cache[cache_key] = results
         return results
-    except Exception as e:
-        logger.exception("Related places failed for %s", location_name)
+    except Exception:
+        logger.exception("Reverse geocode failed for lat=%s lon=%s", lat, lon)
         return []
 
 

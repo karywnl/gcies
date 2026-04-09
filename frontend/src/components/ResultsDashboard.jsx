@@ -3,7 +3,6 @@ import { motion } from 'framer-motion';
 import { Landmark, MapPin, Users, Factory, Train, BarChart3, Globe, Compass, Palmtree, BookOpen, Utensils, Music, Sparkles, ChevronLeft, ChevronRight, ExternalLink, Printer, Share2, Check } from 'lucide-react';
 import MapCard from './MapCard';
 import WeatherCard from './WeatherCard';
-import RelatedPlaces from './RelatedPlaces';
 
 const iconMap = {
     historical: { icon: Landmark, color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.1)' },
@@ -33,7 +32,15 @@ const getIconForKey = (key) => {
 const ImageCarousel = ({ images, locationName }) => {
     const [current, setCurrent] = useState(0);
     const [paused, setPaused] = useState(false);
-    const count = images.length;
+    const [failedImages, setFailedImages] = useState(new Set());
+
+    const visibleImages = images.filter(url => !failedImages.has(url));
+    const count = visibleImages.length;
+
+    const handleImageError = (url) => {
+        setFailedImages(prev => new Set(prev).add(url));
+        setCurrent(i => Math.min(i, Math.max(0, count - 2)));
+    };
 
     const next = useCallback(() => setCurrent(i => (i + 1) % count), [count]);
     const prev = useCallback(() => setCurrent(i => (i - 1 + count) % count), [count]);
@@ -51,11 +58,12 @@ const ImageCarousel = ({ images, locationName }) => {
             onMouseLeave={() => setPaused(false)}
         >
             {/* Slides */}
-            {images.map((url, idx) => (
+            {visibleImages.map((url, idx) => (
                 <img
-                    key={idx}
+                    key={url}
                     src={url}
                     alt={`${locationName} ${idx + 1}`}
+                    onError={() => handleImageError(url)}
                     style={{
                         position: 'absolute',
                         inset: 0,
@@ -81,7 +89,7 @@ const ImageCarousel = ({ images, locationName }) => {
                 </h2>
                 {count > 1 && (
                     <div className="no-print" style={{ display: 'flex', gap: '6px', marginTop: '0.5rem' }}>
-                        {images.map((_, idx) => (
+                        {visibleImages.map((_, idx) => (
                             <button
                                 key={idx}
                                 onClick={() => setCurrent(idx)}
@@ -191,7 +199,8 @@ const ResultsDashboard = ({ data, onSearch }) => {
 
     const images = (image_urls && image_urls.length > 0) ? image_urls : (image_url ? [image_url] : []);
     const hasImages = images.length > 0;
-    const hasMap = quick_facts?.coordinates?.lat != null && quick_facts?.coordinates?.lon != null;
+    const hasMap = quick_facts?.coordinates?.lat != null && quick_facts?.coordinates?.lon != null
+        && isFinite(quick_facts.coordinates.lat) && isFinite(quick_facts.coordinates.lon);
 
     return (
         <div className="fade-in" style={{ width: '100%', maxWidth: '1200px', animationDelay: '0.2s', margin: '2rem auto 0' }}>
@@ -357,14 +366,6 @@ const ResultsDashboard = ({ data, onSearch }) => {
                     })}
                 </div>
 
-                {/* Related Places */}
-                {onSearch && (
-                    <div className="no-print"><RelatedPlaces
-                        locationName={location_name}
-                        exactTitle={location_name}
-                        onSearch={onSearch}
-                    /></div>
-                )}
 
             </div>
         </div>

@@ -13,6 +13,9 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 import uvicorn
 from cachetools import TTLCache
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 from database import redis_client
 from pipeline import (
@@ -28,7 +31,10 @@ from pipeline import (
 
 logger = logging.getLogger(__name__)
 
+limiter = Limiter(key_func=get_remote_address)
 app = FastAPI(title="GCIES API")
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Module-level bounded thread pool for search parallelisation
 _search_executor = concurrent.futures.ThreadPoolExecutor(max_workers=4)
@@ -46,7 +52,8 @@ app.add_middleware(
 )
 
 @app.get("/api/search")
-def search_locations(q: str, source: str = "all"):
+@limiter.limit("30/minute")
+def search_locations(request: Request, q: str, source: str = "all"):
     """
     source=wikipedia  → only Wikipedia candidates (fast, ~200-400ms)
     source=villages   → only onefivenine village candidates
@@ -80,7 +87,8 @@ def search_locations(q: str, source: str = "all"):
         raise HTTPException(status_code=500, detail="Search failed. Please try again.")
 
 @app.get("/api/summarize")
-async def summarize_location(location_name: str, source: str = "wikipedia", path: str = None):
+@limiter.limit("10/minute")
+async def summarize_location(request: Request, location_name: str, source: str = "wikipedia", path: str = None):
     if not location_name:
         raise HTTPException(status_code=400, detail="location_name is required")
     if len(location_name.strip()) > 300:
@@ -137,7 +145,8 @@ async def summarize_location(location_name: str, source: str = "wikipedia", path
 
 
 @app.get("/api/stream")
-async def stream_location(location_name: str, source: str = "wikipedia", path: str = None, exact_title: str = None):
+@limiter.limit("10/minute")
+async def stream_location(request: Request, location_name: str, source: str = "wikipedia", path: str = None, exact_title: str = None):
     """
     Server-Sent Events endpoint. Streams location insights progressively.
 
@@ -288,7 +297,8 @@ async def stream_location(location_name: str, source: str = "wikipedia", path: s
 _nearby_cache = TTLCache(maxsize=512, ttl=600)
 
 @app.get("/api/reverse")
-def reverse_geocode(lat: float, lon: float):
+@limiter.limit("60/minute")
+def reverse_geocode(request: Request, lat: float, lon: float):
     """
     Returns the administrative hierarchy (village → city → state → country)
     for given coordinates using Nominatim reverse geocoding.

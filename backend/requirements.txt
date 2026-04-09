@@ -10,3 +10,4 @@ beautifulsoup4==4.14.3
 lxml
 upstash-redis==1.6.0
 cachetools==7.0.3
+slowapi==0.1.9

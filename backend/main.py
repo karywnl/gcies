@@ -52,7 +52,7 @@ app.add_middleware(
 )
 
 @app.get("/api/search")
-@limiter.limit("30/minute")
+@limiter.limit("200/minute")
 def search_locations(request: Request, q: str, source: str = "all"):
     """
     source=wikipedia  → only Wikipedia candidates (fast, ~200-400ms)
@@ -87,7 +87,7 @@ def search_locations(request: Request, q: str, source: str = "all"):
         raise HTTPException(status_code=500, detail="Search failed. Please try again.")
 
 @app.get("/api/summarize")
-@limiter.limit("10/minute")
+@limiter.limit("100/minute")
 async def summarize_location(request: Request, location_name: str, source: str = "wikipedia", path: str = None):
     if not location_name:
         raise HTTPException(status_code=400, detail="location_name is required")
@@ -145,7 +145,7 @@ async def summarize_location(request: Request, location_name: str, source: str =
 
 
 @app.get("/api/stream")
-@limiter.limit("10/minute")
+@limiter.limit("100/minute")
 async def stream_location(request: Request, location_name: str, source: str = "wikipedia", path: str = None, exact_title: str = None):
     """
     Server-Sent Events endpoint. Streams location insights progressively.
@@ -297,7 +297,7 @@ async def stream_location(request: Request, location_name: str, source: str = "w
 _nearby_cache = TTLCache(maxsize=512, ttl=600)
 
 @app.get("/api/reverse")
-@limiter.limit("60/minute")
+@limiter.limit("300/minute")
 def reverse_geocode(request: Request, lat: float, lon: float):
     """
     Returns the administrative hierarchy (village → city → state → country)

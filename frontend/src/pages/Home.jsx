@@ -5,7 +5,6 @@ import SearchDashboard from '../components/SearchDashboard';
 import SearchResults from '../components/SearchResults';
 import ResultsDashboard from '../components/ResultsDashboard';
 import ProgressiveLoader from '../components/ProgressiveLoader';
-import ResultsSkeleton from '../components/ResultsSkeleton';
 import { saveSearchToHistory } from '../components/SearchDashboard';
 
 const Home = ({ initialQuery = null }) => {
@@ -207,13 +206,8 @@ const Home = ({ initialQuery = null }) => {
                 />
             )}
 
-            {/* Stream loading: pill indicator + hero skeleton while waiting for first data */}
-            {loading && !inDisambiguation && (
-                <>
-                    <ProgressiveLoader />
-                    <ResultsSkeleton />
-                </>
-            )}
+            {/* Stream loading indicator */}
+            {loading && !inDisambiguation && <ProgressiveLoader />}
 
             {/* Error */}
             {error && !inDisambiguation && (

@@ -26,6 +26,12 @@ The project utilizes a fast, Python-based NLP pipeline combined with state-of-th
 
 ---
 
+## Workflow
+
+![GCIES Workflow](docs/workflow-gcies.png)
+
+---
+
 ## Architecture Overview
 
 GCIES is built on a **"input-fetch-score-filter-summarize-cache"** NLP architecture optimized for LLM token efficiency and speed:
